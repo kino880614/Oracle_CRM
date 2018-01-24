@@ -1,0 +1,1518 @@
+CREATE OR REPLACE PACKAGE                   "PKG_CAMP" IS 
+
+    PROCEDURE SP_NEO_MX_ACC_COM_ZON_REG (
+    P_ESTR IN VARCHAR2, 
+    P_TPO_CAMP IN NUMBER,
+    P_FLG_ZON_REG IN NUMBER,
+    O_ACC_COM OUT SYS_REFCURSOR);
+
+   PROCEDURE SP_NEO_MX_DET_ACC_COM_ZON(
+    P_FLG IN NUMBER,
+    P_ESTR IN VARCHAR2,
+    P_TIP IN NUMBER,
+    P_AGR IN NUMBER,
+    O_ACC_COM OUT SYS_REFCURSOR);
+
+    PROCEDURE SP_NEO_MX_TOP_OFTA(
+    P_FLG IN NUMBER,
+    P_ESTR IN VARCHAR2,
+    P_TIP IN NUMBER,
+    P_AGR IN NUMBER,
+    O_ACC_COM OUT SYS_REFCURSOR);
+
+    PROCEDURE SP_NEO_MX_CONT_OFTA(
+    P_FLG IN NUMBER,
+    P_FLG2 IN NUMBER,
+    P_ESTR IN VARCHAR2,
+    P_TIP IN NUMBER,
+    O_ACC_COM OUT SYS_REFCURSOR);
+
+    PROCEDURE SP_NEO_MX_LIST_OFTA(
+    P_FLG IN NUMBER,
+    P_ESTR IN VARCHAR2,
+    P_TIP IN NUMBER,
+    P_SUB IN NUMBER,
+    P_CAMP IN NUMBER,
+    P_PLUS IN NUMBER,
+    O_ACC_COM OUT SYS_REFCURSOR);
+
+    PROCEDURE SP_NEO_MX_CONT_OFTA_CAMP(
+    P_FLG IN NUMBER,
+    P_SUB IN NUMBER,
+    P_ESTR IN NUMBER,
+    O_ACC_COM OUT SYS_REFCURSOR);
+
+    PROCEDURE SP_NEO_MX_GEST_TOP_CAMP(
+    P_ESTR IN VARCHAR2,
+    P_NIVEL IN NUMBER,
+    P_OPC_CANT IN NUMBER,
+    P_FCH_INI IN VARCHAR2,
+    P_FCH_FIN IN VARCHAR2,
+    C_TOP_GEST OUT SYS_REFCURSOR,
+    P_EST OUT NUMBER,
+    P_MSG OUT VARCHAR2
+    );
+
+END PKG_CAMP;
+
+
+
+/
+
+
+CREATE OR REPLACE PACKAGE BODY                                                                                                    "PKG_CAMP" IS
+
+    PROCEDURE SP_NEO_MX_ACC_COM_ZON_REG (
+            P_ESTR IN VARCHAR2, 
+            P_TPO_CAMP IN NUMBER,
+            P_FLG_ZON_REG IN NUMBER,
+            O_ACC_COM OUT SYS_REFCURSOR) AS
+    
+    L_CTES_CAMP NUMBER(13);
+    L_CTES_MNT_CAMP NUMBER(18,2);
+    L_CTES_GEST NUMBER(13);
+    L_CTES_MNT_GEST NUMBER(18,2);
+    L_CTES_ESP NUMBER(13);
+    L_CTES_MNT_ESP NUMBER(18,2);
+    L_CTES_CRRE NUMBER(13);
+    L_CTES_MNT_CRRE NUMBER(18,2);
+    L_ID_ESTR NUMBER(13);
+    L_TXT_NOM_ESTR VARCHAR2(200);
+    L_POS_CAMP NUMBER(13);
+    L_TXT_TPO_CAMP VARCHAR2(200);
+
+    V_CAL_NAL NUMBER(20,2);
+    V_DIVISOR NUMBER(20,2);
+    V_DIVIDENDO NUMBER(20,2);
+    V_COLOR VARCHAR2(6);
+    V_PORC_CON NUMBER(20,2);
+
+	BEGIN
+
+    --REGIONAL
+    IF P_FLG_ZON_REG =1 THEN
+
+        DBMS_OUTPUT.PUT_LINE('Inicio de Linea 33');
+        --CAMPAÑAS DE CLIENTES
+        --MONTO DE CAMPAÑA DE CLIENTES
+        SELECT SUM(A.TOT_CAMP) QR1_1, SUM(A.MNT_CAMP) QR1_2 
+          INTO L_CTES_CAMP,L_CTES_MNT_CAMP 
+          FROM NEO_MX_MAE_TOP_OFTA A
+          JOIN NEO_MX_MAE_SUC B ON A.TXT_ESTR=TO_CHAR(B.NUM_CC)
+          JOIN NEO_MX_MAE_CAT_ZONS C ON B.ID_ZON=C.ID_ZON
+         WHERE A.ID_TPO=P_TPO_CAMP 
+           AND A.TXT_NIVEL='S' 
+           AND C.ID_ZON=P_ESTR;
+
+        --CLIENTES GESTIONADOS
+        --MONTO CLIENTES GESTIONADOS
+        --CAMPAÑAS ESPERADAS
+        --MONTO DE CAMPAÑAS ESPERADOS
+        SELECT COUNT(1) QR2_1, 
+               SUM(CASE WHEN A.ID_OFTA=(SELECT ID_OFTA FROM NEO_MX_MAE_DET_CAMP WHERE ID_OFTA=A.ID_OFTA) 
+                        THEN (SELECT IMP_AUTO FROM NEO_MX_MAE_DET_CAMP WHERE ID_OFTA=A.ID_OFTA) ELSE 0 END)QR2_2,
+               SUM(CASE WHEN A.ID_NEXT_STP IN (1,3) THEN 1 ELSE 0 END) QR2_3,
+               SUM(CASE WHEN A.ID_NEXT_STP IN (1,3) 
+                        THEN (SELECT IMP_AUTO FROM NEO_MX_MAE_DET_CAMP WHERE ID_OFTA=A.ID_OFTA) ELSE 0 END) QR2_4
+          INTO L_CTES_GEST,L_CTES_MNT_GEST,L_CTES_ESP,L_CTES_MNT_ESP
+          FROM NEO_MX_MAE_ULT_GEST A
+          JOIN NEO_MX_MAE_OFTA_CTE B ON B.ID_OFTA=A.ID_OFTA
+          JOIN NEO_MX_MAE_EJEC C ON A.TXT_OFI_ACT=C.TXT_OFI_ACT
+          JOIN NEO_MX_CAT_OFTA D ON B.ID_TIPO_OFTA=D.ID_TIPO_OFTA
+          JOIN NEO_MX_MAE_CAT_SUBT_CAMP E ON D.ID_SUB_TPO=E.ID_SUB_TPO
+         WHERE C.ID_ZON=P_ESTR AND E.ID_TPO=P_TPO_CAMP
+           AND TRUNC(D.FCH_INI_VIG)<=TRUNC(SYSDATE) 
+           AND TRUNC(D.FCH_VENCI) >=TRUNC(SYSDATE);
+
+
+        --CAMPAÑAS CERRADAS
+        --MONTO DE CAMPAÑAS CERRADAS
+        SELECT SUM(A.TOT_CERR) QR4_1, SUM(A.MNT_CERR) QR4_2
+          INTO L_CTES_CRRE,L_CTES_MNT_CRRE
+          FROM NEO_MX_MAE_TOP_OFTA A
+          JOIN NEO_MX_MAE_SUC B ON A.TXT_ESTR=TO_CHAR(B.NUM_CC)
+          JOIN NEO_MX_MAE_CAT_ZONS C ON B.ID_ZON=C.ID_ZON
+         WHERE A.ID_TPO=P_TPO_CAMP 
+           AND A.TXT_NIVEL='S' 
+           AND C.ID_ZON=P_ESTR;
+
+        --POSICION DE ZONA POR TIPO
+        /**
+        Incidente 2018/01/11 -> Se coloco como tabla pivote el tipo de oferta basado en que no pueden existir todos los tipos
+        de campañas para todas los niveles.
+        **/
+        SELECT A.POS QRP_1 
+          INTO L_POS_CAMP
+          FROM (SELECT ROWNUM POS, NVL(A.ID_ZON,P_ESTR)AS ID_ZON ,NVL(A.QR1_1,0) AS QR1_1
+                  FROM (SELECT  C.ID_ZON, SUM(A.TOT_GEST) QR1_1
+                          FROM NEO_MX_MAE_CAT_TIP_CAMP CAT 
+                          LEFT OUTER JOIN NEO_MX_MAE_TOP_OFTA A ON A.ID_TPO=CAT.ID_TPO AND A.TXT_NIVEL='S'
+                          LEFT OUTER JOIN NEO_MX_MAE_SUC B ON A.TXT_ESTR=TO_CHAR(B.NUM_CC)
+                          LEFT OUTER JOIN NEO_MX_MAE_CAT_ZONS C ON B.ID_ZON=C.ID_ZON
+                         WHERE CAT.ID_TPO=P_TPO_CAMP
+                         GROUP BY C.ID_ZON, C.TXT_NOM_ZON
+                         ORDER BY 2 DESC) A) A
+         WHERE A.ID_ZON=P_ESTR;
+
+        L_ID_ESTR:=P_ESTR;
+
+        SELECT TXT_NOM_ZON INTO L_TXT_NOM_ESTR
+          FROM NEO_MX_MAE_CAT_ZONS 
+         WHERE ID_ZON=P_ESTR;
+
+        --CALCULO PARA PORCENTAJE NACIONAL Y OBTENCIÓN DEL COLOR
+        --PERMITE OBTENER EL VALOR DEL DIVIDENDO NACIONAL
+        SELECT SUM(A.TOT_CERR) INTO V_DIVIDENDO
+          FROM NEO_MX_MAE_TOP_OFTA A
+         INNER JOIN NEO_MX_MAE_SUC B ON A.TXT_ESTR=TO_CHAR(B.NUM_CC)
+         INNER JOIN NEO_MX_MAE_CAT_ZONS C ON B.ID_ZON=C.ID_ZON
+         WHERE A.ID_TPO=P_TPO_CAMP
+           AND A.TXT_NIVEL='S';
+
+        --PERMITE OBTENER EL VALOR DEL DIVISOR NACIONAL
+        SELECT COUNT(1) INTO V_DIVISOR
+          FROM NEO_MX_MAE_ULT_GEST A
+         INNER JOIN NEO_MX_MAE_OFTA_CTE B ON B.ID_OFTA=A.ID_OFTA
+         INNER JOIN NEO_MX_MAE_EJEC C ON A.TXT_OFI_ACT=C.TXT_OFI_ACT
+         INNER JOIN NEO_MX_CAT_OFTA D ON B.ID_TIPO_OFTA=D.ID_TIPO_OFTA
+         INNER JOIN NEO_MX_MAE_CAT_SUBT_CAMP E ON D.ID_SUB_TPO=E.ID_SUB_TPO
+         WHERE E.ID_TPO=P_TPO_CAMP
+           AND TRUNC(D.FCH_INI_VIG)<=TRUNC(SYSDATE) AND TRUNC(D.FCH_VENCI) >=TRUNC(SYSDATE);
+
+        --REALIZANDO EL CALCULO
+        IF NVL(V_DIVISOR,0)>0 THEN --NACIONAL
+            V_CAL_NAL:=ROUND(((V_DIVIDENDO/V_DIVISOR)*100),2);
+        ELSE 
+            V_CAL_NAL:=0;
+        END IF;
+
+        IF NVL(L_CTES_GEST,0) > 0 THEN --ZONAL
+            V_PORC_CON := ROUND(((L_CTES_CRRE/L_CTES_GEST)*100),2);
+        ELSE
+            V_PORC_CON := 0;
+        END IF;
+
+        --OBTENIENDO EL COLOR
+        IF V_PORC_CON > V_CAL_NAL THEN
+            SELECT TXT_HEX_COL INTO V_COLOR
+              FROM NEO_MX_CAT_GC_DET 
+             WHERE ID_CAT=2 AND ID_DET_CGC=5; --5 VERDE, 6 AMA, 7 ROJO;
+        ELSE
+            IF (V_PORC_CON)<=(V_CAL_NAL-5) THEN 
+                SELECT TXT_HEX_COL INTO V_COLOR
+                  FROM NEO_MX_CAT_GC_DET 
+                 WHERE ID_CAT=2 AND ID_DET_CGC=7; --5 VERDE, 6 AMA, 7 ROJO;                
+            ELSE
+                SELECT TXT_HEX_COL INTO V_COLOR
+                  FROM NEO_MX_CAT_GC_DET 
+                 WHERE ID_CAT=2 AND ID_DET_CGC=6; --5 VERDE, 6 AMA, 7 ROJO;
+            END IF;
+        END IF;
+
+        OPEN O_ACC_COM  FOR 
+        SELECT NVL(L_CTES_CAMP,0) AS CTES_CAMP,              --1
+               NVL(L_CTES_MNT_CAMP,0) AS CTES_MNT_CAMP,      --2
+               NVL(L_CTES_GEST,0) AS CTES_GEST,              --3
+               NVL(L_CTES_MNT_GEST,0) AS CTES_MNT_GEST,      --4
+               NVL(L_CTES_ESP,0) AS CTES_ESP,                --5
+               NVL(L_CTES_MNT_ESP,0) AS CTES_MNT_ESP,        --6
+               NVL(L_CTES_CRRE,0) AS CTES_CRRE,              --7
+               NVL(L_CTES_MNT_CRRE,0) AS CTES_MNT_CRRE,      --8
+               NVL(V_CAL_NAL,0) AS CONV_NAC,                        
+               V_COLOR AS COLOR,
+               NVL(CASE WHEN NVL(L_CTES_GEST,0) > 0 THEN ROUND(((L_CTES_CRRE/L_CTES_GEST)*100),2) ELSE 0 END,0) CONV,
+               NVL(L_ID_ESTR,0) AS ID_ESTR, 
+               NVL(L_TXT_NOM_ESTR,'-') AS NOM_ESTR, 
+               NVL(L_POS_CAMP,68) AS POS_CAMP 
+          FROM DUAL;
+
+    --ZONAL (USO EN CLIC 0 PRODUCTO 1)
+    ELSIF P_FLG_ZON_REG=2 THEN
+
+            FOR QUER_1 IN
+                  (
+            --CAMPAÑAS DE CLIENTES
+            --MONTO DE CAMPAÑA DE CLIENTES
+                  SELECT SUM(A.TOT_CAMP) QR1_1, SUM(A.MNT_CAMP) QR1_2 
+                  FROM NEO_MX_MAE_TOP_OFTA A
+                  JOIN NEO_MX_MAE_SUC B ON A.TXT_ESTR=TO_CHAR(B.NUM_CC)
+                  JOIN NEO_MX_MAE_CAT_REGS C ON B.ID_REG=C.ID_REG
+                  WHERE A.ID_TPO=P_TPO_CAMP AND A.TXT_NIVEL='S' AND C.ID_REG=P_ESTR
+                ) LOOP
+                L_CTES_CAMP:=QUER_1.QR1_1;
+                L_CTES_MNT_CAMP:=QUER_1.QR1_2;
+                END LOOP;
+
+                FOR QUER_2 IN
+                  (
+                  --CLIENTES GESTIONADOS
+                  --MONTO CLIENTES GESTIONADOS
+                  --CAMPAÑAS ESPERADAS
+                  --MONTO DE CAMPAÑAS ESPERADOS
+                  SELECT COUNT(1) QR2_1, 
+                  SUM(CASE WHEN A.ID_OFTA=(SELECT ID_OFTA FROM NEO_MX_MAE_DET_CAMP WHERE ID_OFTA=A.ID_OFTA) 
+                  THEN (SELECT IMP_AUTO FROM NEO_MX_MAE_DET_CAMP WHERE ID_OFTA=A.ID_OFTA) ELSE 0 END)QR2_2,
+                  SUM(CASE WHEN A.ID_NEXT_STP IN (1,3) THEN 1 ELSE 0 END) QR2_3,
+                  SUM(CASE WHEN A.ID_NEXT_STP IN (1,3) 
+                  THEN (SELECT IMP_AUTO FROM NEO_MX_MAE_DET_CAMP WHERE ID_OFTA=A.ID_OFTA) ELSE 0 END) QR2_4
+                  FROM NEO_MX_MAE_ULT_GEST A
+                  JOIN NEO_MX_MAE_OFTA_CTE B ON B.ID_OFTA=A.ID_OFTA
+                  JOIN NEO_MX_MAE_EJEC C ON A.TXT_OFI_ACT=C.TXT_OFI_ACT
+                  JOIN NEO_MX_CAT_OFTA D ON B.ID_TIPO_OFTA=D.ID_TIPO_OFTA
+                  JOIN NEO_MX_MAE_CAT_SUBT_CAMP E ON D.ID_SUB_TPO=E.ID_SUB_TPO
+                  WHERE C.ID_REG=P_ESTR AND E.ID_TPO=P_TPO_CAMP
+                  AND TRUNC(D.FCH_INI_VIG)<=TRUNC(SYSDATE) AND TRUNC(D.FCH_VENCI) >=TRUNC(SYSDATE)
+                ) LOOP
+                L_CTES_GEST:=QUER_2.QR2_1;
+                L_CTES_MNT_GEST:=QUER_2.QR2_2;
+                L_CTES_ESP:=QUER_2.QR2_3;
+                L_CTES_MNT_ESP:=QUER_2.QR2_4;
+                END LOOP;
+
+                FOR QUER_4 IN
+                  (
+                  --CAMPAÑAS CERRADAS
+                  --MONTO DE CAMPAÑAS CERRADAS
+
+                    SELECT SUM(A.TOT_CERR) QR4_1, SUM(A.MNT_CERR) QR4_2 
+                    FROM NEO_MX_MAE_TOP_OFTA A
+                    JOIN NEO_MX_MAE_SUC B ON A.TXT_ESTR=TO_CHAR(B.NUM_CC)
+                    JOIN NEO_MX_MAE_CAT_REGS C ON B.ID_REG=C.ID_REG
+                    WHERE A.ID_TPO=P_TPO_CAMP AND A.TXT_NIVEL='S' AND C.ID_REG=P_ESTR
+
+                ) LOOP
+                L_CTES_CRRE:=QUER_4.QR4_1;
+                L_CTES_MNT_CRRE:=QUER_4.QR4_2;
+                END LOOP;
+
+                L_ID_ESTR:=P_ESTR;
+                SELECT TXT_NOM_REG INTO L_TXT_NOM_ESTR
+                FROM NEO_MX_MAE_CAT_REGS 
+                WHERE ID_REG=P_ESTR;
+
+                --CALCULO PARA PORCENTAJE NACIONAL Y OBTENCIÓN DEL COLOR
+                --PERMITE OBTENER EL VALOR DEL DIVIDENDO
+                SELECT SUM(A.TOT_CERR) INTO V_DIVIDENDO
+                  FROM NEO_MX_MAE_TOP_OFTA A
+                 INNER JOIN NEO_MX_MAE_SUC B ON A.TXT_ESTR=TO_CHAR(B.NUM_CC)
+                 INNER JOIN NEO_MX_MAE_CAT_REGS C ON B.ID_REG=C.ID_REG
+                 WHERE A.ID_TPO=P_TPO_CAMP
+                   AND A.TXT_NIVEL='S';
+
+                --PERMITE OBTENER EL VALOR DEL DIVISOR
+                SELECT COUNT(1) INTO V_DIVISOR
+                  FROM NEO_MX_MAE_ULT_GEST A
+                 INNER JOIN NEO_MX_MAE_OFTA_CTE B ON B.ID_OFTA=A.ID_OFTA
+                 INNER JOIN NEO_MX_MAE_EJEC C ON A.TXT_OFI_ACT=C.TXT_OFI_ACT
+                 INNER JOIN NEO_MX_CAT_OFTA D ON B.ID_TIPO_OFTA=D.ID_TIPO_OFTA
+                 INNER JOIN NEO_MX_MAE_CAT_SUBT_CAMP E ON D.ID_SUB_TPO=E.ID_SUB_TPO
+                 WHERE E.ID_TPO=P_TPO_CAMP
+                   AND TRUNC(D.FCH_INI_VIG)<=TRUNC(SYSDATE) AND TRUNC(D.FCH_VENCI) >=TRUNC(SYSDATE);
+
+                --REALIZANDO EL CALCULO
+                IF NVL(V_DIVISOR,0)>0 THEN --NACIONAL
+                    V_CAL_NAL:=ROUND(((V_DIVIDENDO/V_DIVISOR)*100),2);
+                ELSE 
+                    V_CAL_NAL:=0;
+                END IF;
+
+                IF NVL(L_CTES_GEST,0) > 0 THEN --ZONAL
+                     V_PORC_CON := ROUND(((L_CTES_CRRE/L_CTES_GEST)*100),2);
+                ELSE
+                    V_PORC_CON := 0;
+                END IF;
+
+                --OBTENIENDO EL COLOR
+                IF V_PORC_CON > V_CAL_NAL THEN
+                    SELECT TXT_HEX_COL INTO V_COLOR
+                      FROM NEO_MX_CAT_GC_DET 
+                     WHERE ID_CAT=2 AND ID_DET_CGC=5; --5 VERDE, 6 AMA, 7 ROJO;
+                ELSE
+                    IF (V_PORC_CON)<=(V_CAL_NAL-5) THEN 
+                        SELECT TXT_HEX_COL INTO V_COLOR
+                          FROM NEO_MX_CAT_GC_DET 
+                         WHERE ID_CAT=2 AND ID_DET_CGC=7; --5 VERDE, 6 AMA, 7 ROJO;                
+                    ELSE
+                        SELECT TXT_HEX_COL INTO V_COLOR
+                          FROM NEO_MX_CAT_GC_DET 
+                         WHERE ID_CAT=2 AND ID_DET_CGC=6; --5 VERDE, 6 AMA, 7 ROJO;
+                    END IF;
+                END IF;
+
+                OPEN O_ACC_COM FOR 
+                SELECT 
+                      NVL(L_CTES_CAMP,0) AS CTES_CAMP,
+                      NVL(L_CTES_MNT_CAMP,0) AS CTES_MNT_CAMP,
+                      NVL(L_CTES_GEST,0) AS CTES_GEST,
+                      NVL(L_CTES_MNT_GEST,0) AS CTES_MNT_GEST,
+                      NVL(L_CTES_ESP,0) AS CTES_ESP,
+                      NVL(L_CTES_MNT_ESP,0) AS CTES_MNT_ESP,
+                      NVL(L_CTES_CRRE,0) AS CTES_CRRE,
+                      NVL(L_CTES_MNT_CRRE,0) AS CTES_MNT_CRRE,
+                      NVL(V_CAL_NAL,0) AS CONV_NAC,
+                      V_COLOR AS COLOR,
+                      NVL(CASE WHEN NVL(L_CTES_GEST,0) > 0 THEN ROUND(((L_CTES_CRRE/L_CTES_GEST)*100),2) ELSE 0 END,0) CONV,                  
+                      NVL(L_ID_ESTR,0) AS ID_ESTR,
+                      NVL(L_TXT_NOM_ESTR,'-') AS NOM_ESTR
+                 FROM DUAL;
+
+--SUCURSAL
+    ELSIF P_FLG_ZON_REG=3 THEN 
+
+    DECLARE
+    CURSOR C_SUC_1(C_SUC NUMBER,C_TIP NUMBER ) IS
+        SELECT COUNT( D.ID_OFTA) QR1, NVL(SUM(NVL(F.IMP_AUTO,0)),0) QR2
+        FROM NEO_MX_MAE_CAT_SUBT_CAMP B 
+        JOIN NEO_MX_CAT_OFTA C ON B.ID_SUB_TPO=C.ID_SUB_TPO
+        JOIN NEO_MX_MAE_OFTA_CTE D ON C.ID_TIPO_OFTA=D.ID_TIPO_OFTA
+        JOIN NEO_MX_MAE_EJEC E ON D.TXT_OFI_ACT=E.TXT_OFI_ACT
+        JOIN NEO_MX_MAE_DET_CAMP F ON D.ID_OFTA= F.ID_OFTA
+        WHERE B.ID_TPO=C_TIP
+        AND E.NUM_CC=C_SUC
+        AND TRUNC(C.FCH_INI_VIG)<=TRUNC(SYSDATE) AND TRUNC(C.FCH_VENCI) >=TRUNC(SYSDATE);
+
+    CURSOR C_SUC_2(C_SUC NUMBER, C_TIP NUMBER) IS
+        SELECT COUNT( C.ID_OFTA) QR1, NVL(SUM(NVL(F.IMP_AUTO,0)),0) QR2
+        FROM NEO_MX_MAE_CAT_SUBT_CAMP A
+        JOIN NEO_MX_CAT_OFTA B ON A.ID_SUB_TPO=B.ID_SUB_TPO
+        JOIN NEO_MX_MAE_OFTA_CTE C ON B.ID_TIPO_OFTA=C.ID_TIPO_OFTA
+        JOIN NEO_MX_MAE_ULT_GEST D ON C.ID_OFTA=D.ID_OFTA
+        JOIN NEO_MX_MAE_EJEC E ON D.TXT_OFI_ACT=E.TXT_OFI_ACT
+        JOIN NEO_MX_MAE_DET_CAMP F ON C.ID_OFTA=F.ID_OFTA
+        WHERE A.ID_TPO=C_TIP 
+        AND E.NUM_CC=C_SUC
+        AND TRUNC(B.FCH_INI_VIG)<=TRUNC(SYSDATE) AND TRUNC(B.FCH_VENCI) >=TRUNC(SYSDATE);
+
+    CURSOR C_SUC_3(C_SUC NUMBER, C_TIP NUMBER) IS
+        SELECT COUNT( C.ID_OFTA) QR1, NVL(SUM(NVL(F.IMP_AUTO,0)),0) QR2
+        FROM NEO_MX_MAE_CAT_SUBT_CAMP A
+        JOIN NEO_MX_CAT_OFTA B ON A.ID_SUB_TPO=B.ID_SUB_TPO
+        JOIN NEO_MX_MAE_OFTA_CTE C ON B.ID_TIPO_OFTA=C.ID_TIPO_OFTA
+        JOIN NEO_MX_MAE_ULT_GEST D ON C.ID_OFTA=D.ID_OFTA
+        JOIN NEO_MX_MAE_EJEC E ON D.TXT_OFI_ACT=E.TXT_OFI_ACT
+        JOIN NEO_MX_MAE_DET_CAMP F ON C.ID_OFTA=F.ID_OFTA
+        WHERE 
+          A.ID_TPO=C_TIP AND 
+          TRUNC(B.FCH_INI_VIG)<=TRUNC(SYSDATE) AND 
+          TRUNC(B.FCH_VENCI) >=TRUNC(SYSDATE) AND 
+          E.NUM_CC=C_SUC AND 
+          D.ID_NEXT_STP IN (1,3);
+
+    CURSOR C_SUC_4(C_SUC NUMBER, C_TIP NUMBER) IS
+        SELECT COUNT( C.ID_OFTA) QR1,NVL(SUM(NVL(D.NUM_MONT_CRRE,0)),0) QR2
+        FROM NEO_MX_MAE_CAT_SUBT_CAMP A
+        JOIN NEO_MX_CAT_OFTA B ON A.ID_SUB_TPO=B.ID_SUB_TPO
+        JOIN NEO_MX_MAE_OFTA_CTE C ON B.ID_TIPO_OFTA=C.ID_TIPO_OFTA
+        JOIN NEO_MX_MAE_CRRE_PROD D ON C.ID_OFTA=D.ID_OFTA
+        JOIN NEO_MX_MAE_EJEC E ON D.TXT_OFI_ACT=E.TXT_OFI_ACT
+        WHERE 
+          A.ID_TPO=C_TIP AND 
+          TRUNC(B.FCH_INI_VIG)<=TRUNC(SYSDATE) AND 
+          TRUNC(B.FCH_VENCI) >=TRUNC(SYSDATE) AND 
+          E.NUM_CC=C_SUC;
+
+    BEGIN
+
+    FOR R_C_1 IN C_SUC_1(P_ESTR,P_TPO_CAMP) LOOP
+        L_CTES_CAMP:=R_C_1.QR1;
+        L_CTES_MNT_CAMP:=R_C_1.QR2;
+    END LOOP;
+
+    FOR R_C_2 IN C_SUC_2(P_ESTR,P_TPO_CAMP) LOOP
+        L_CTES_GEST:=R_C_2.QR1;
+        L_CTES_MNT_GEST:=R_C_2.QR2;
+    END LOOP;
+
+    FOR R_C_3 IN C_SUC_3(P_ESTR,P_TPO_CAMP) LOOP
+        L_CTES_ESP:=R_C_3.QR1;
+        L_CTES_MNT_ESP:=R_C_3.QR2;
+    END LOOP;
+
+    FOR R_C_4 IN C_SUC_4(P_ESTR,P_TPO_CAMP) LOOP
+        L_CTES_CRRE:=R_C_4.QR1;
+        L_CTES_MNT_CRRE:=R_C_4.QR2;
+    END LOOP;
+
+    SELECT TXT_TPO INTO L_TXT_TPO_CAMP
+      FROM NEO_MX_MAE_CAT_TIP_CAMP 
+     WHERE ID_TPO=P_TPO_CAMP;
+
+    --CALCULO PARA PORCENTAJE NACIONAL Y OBTENCIÓN DEL COLOR            
+    OPEN O_ACC_COM  FOR 
+    SELECT 
+            NVL(L_CTES_CAMP,0) AS CTES_CAMP,
+            NVL(L_CTES_MNT_CAMP,0) AS CTES_MNT_CAMP,
+            NVL(L_CTES_GEST,0) AS CTES_GEST,
+            NVL(L_CTES_MNT_GEST,0) AS CTES_MNT_GEST,
+            NVL(L_CTES_ESP,0) AS CTES_ESP,
+            NVL(L_CTES_MNT_ESP,0) AS CTES_MNT_ESP,
+            NVL(L_CTES_CRRE,0) AS CTES_CRRE,
+            NVL(L_CTES_MNT_CRRE,0) AS CTES_MNT_CRRE,
+            L_TXT_TPO_CAMP AS TXT_TPO_CAMP                  
+       FROM DUAL;
+
+        END;
+    ELSE
+        DBMS_OUTPUT.PUT_LINE('NO OPCION SELECCIONADA');
+    END IF;
+
+    EXCEPTION
+
+    WHEN TOO_MANY_ROWS THEN
+          DBMS_OUTPUT.PUT_LINE('2 OR MORE ROWS FOR THIS ZONE, CONTACT TO THE DBA');
+
+    WHEN OTHERS THEN
+          DBMS_OUTPUT.PUT_LINE(SQLERRM());
+          DBMS_OUTPUT.PUT_LINE(SQLCODE());          
+    END;
+
+    PROCEDURE SP_NEO_MX_DET_ACC_COM_ZON(
+            P_FLG IN NUMBER,
+            P_ESTR IN VARCHAR2,
+            P_TIP IN NUMBER,--TIPO DE CAMPAÑA
+            P_AGR IN NUMBER,--AGRUPADO
+            O_ACC_COM OUT SYS_REFCURSOR) IS
+
+    V_STMT_CAMP VARCHAR2(5000);
+    BEGIN
+
+    IF P_FLG=1 THEN
+
+        IF P_AGR=1 OR P_AGR=2 OR P_AGR=7 OR P_AGR=8 THEN
+            V_STMT_CAMP:='SELECT 
+            A.NUM_CC ESTR,A.TXT_NOM_SUC NOM,
+            CASE WHEN A.NUM_CC=(SELECT DISTINCT TXT_ESTR FROM NEO_MX_MAE_TOP_OFTA WHERE TXT_ESTR=A.NUM_CC AND TXT_NIVEL=:A AND ID_TPO=:B) THEN (SELECT ';
+                IF P_AGR=1 THEN
+                    V_STMT_CAMP:=V_STMT_CAMP||' SUM(TOT_CAMP) TOT_CAMP';
+                ELSIF P_AGR=2 THEN
+                    V_STMT_CAMP:=V_STMT_CAMP||' SUM(MNT_CAMP) MNT_CAMP';
+                ELSIF P_AGR=7 THEN 
+                    V_STMT_CAMP:=V_STMT_CAMP||' SUM(TOT_CERR) TOT_CERR';
+                ELSIF P_AGR=8 THEN 
+                    V_STMT_CAMP:=V_STMT_CAMP||' SUM(MNT_CERR) MNT_CERR';	
+                END IF;
+                V_STMT_CAMP:=V_STMT_CAMP||' FROM NEO_MX_MAE_TOP_OFTA WHERE TXT_ESTR=A.NUM_CC AND TXT_NIVEL=:C AND ID_TPO=:D) ELSE 0 END VAL1
+                    FROM NEO_MX_MAE_SUC A
+                    WHERE A.ID_ZON=:E';
+          OPEN O_ACC_COM  FOR V_STMT_CAMP USING 'S',P_TIP,'S',P_TIP,P_ESTR;
+
+        ELSIF P_AGR=3 OR P_AGR=4 OR P_AGR=5 OR P_AGR=6 THEN
+            V_STMT_CAMP:='SELECT A.NUM_CC ESTR,A.TXT_NOM_SUC NOM, ';
+                IF P_AGR=3 THEN
+                    V_STMT_CAMP:=V_STMT_CAMP||' NVL(B.CONT,0) VAL1
+                    FROM
+                    NEO_MX_MAE_SUC A
+                    LEFT OUTER JOIN 
+                    (
+                    SELECT SUM(CASE WHEN D.ID_OFTA=(SELECT ID_OFTA FROM NEO_MX_MAE_ULT_GEST WHERE ID_OFTA=D.ID_OFTA) 
+                            THEN 1 ELSE 0 END) CONT,
+                    E.NUM_CC
+                    FROM  NEO_MX_MAE_CAT_SUBT_CAMP A
+                    JOIN  NEO_MX_CAT_OFTA B ON A.ID_SUB_TPO=B.ID_SUB_TPO
+                    JOIN  NEO_MX_MAE_OFTA_CTE C ON B.ID_TIPO_OFTA=C.ID_TIPO_OFTA
+                    JOIN  NEO_MX_MAE_ULT_GEST D ON C.ID_OFTA=D.ID_OFTA
+                    JOIN  NEO_MX_MAE_EJEC E ON D.TXT_OFI_ACT=E.TXT_OFI_ACT
+                    WHERE A.ID_TPO=:A AND E.ID_ZON=:B
+                    AND TRUNC(B.FCH_INI_VIG)<=TRUNC(SYSDATE) AND TRUNC(B.FCH_VENCI) >=TRUNC(SYSDATE) ';
+                ELSIF P_AGR=4 THEN 
+                    V_STMT_CAMP:=V_STMT_CAMP||'  NVL(B.SUM_1,0) VAL1
+                    FROM
+                    NEO_MX_MAE_SUC A
+                    LEFT OUTER JOIN 
+                    (
+                    SELECT
+                    SUM(CASE WHEN D.ID_OFTA=(SELECT ID_OFTA FROM NEO_MX_MAE_DET_CAMP WHERE ID_OFTA=D.ID_OFTA) 
+                      THEN (SELECT NVL(IMP_AUTO,0) FROM NEO_MX_MAE_DET_CAMP WHERE ID_OFTA=D.ID_OFTA) ELSE 0 END) SUM_1,
+                    E.NUM_CC
+                    FROM  NEO_MX_MAE_CAT_SUBT_CAMP A
+                    JOIN  NEO_MX_CAT_OFTA B ON A.ID_SUB_TPO=B.ID_SUB_TPO
+                    JOIN  NEO_MX_MAE_OFTA_CTE C ON B.ID_TIPO_OFTA=C.ID_TIPO_OFTA
+                    JOIN  NEO_MX_MAE_ULT_GEST D ON C.ID_OFTA=D.ID_OFTA
+                    JOIN  NEO_MX_MAE_EJEC E ON D.TXT_OFI_ACT=E.TXT_OFI_ACT
+                    JOIN  NEO_MX_MAE_DET_CAMP F ON C.ID_OFTA=F.ID_OFTA
+                    WHERE A.ID_TPO=:A AND E.ID_ZON=:B
+                    AND TRUNC(B.FCH_INI_VIG)<=TRUNC(SYSDATE) AND TRUNC(B.FCH_VENCI) >=TRUNC(SYSDATE) ';
+                ELSIF P_AGR=5 THEN
+                    V_STMT_CAMP:=V_STMT_CAMP||'  NVL(B.CONT,0) VAL1
+                    FROM
+                    NEO_MX_MAE_SUC A
+                    LEFT OUTER JOIN 
+                    (
+                    SELECT SUM(CASE WHEN D.ID_OFTA=(SELECT ID_OFTA FROM NEO_MX_MAE_ULT_GEST WHERE ID_OFTA=D.ID_OFTA) 
+                            THEN 1 ELSE 0 END) CONT,
+                    E.NUM_CC
+                    FROM  NEO_MX_MAE_CAT_SUBT_CAMP A
+                    JOIN  NEO_MX_CAT_OFTA B ON A.ID_SUB_TPO=B.ID_SUB_TPO
+                    JOIN  NEO_MX_MAE_OFTA_CTE C ON B.ID_TIPO_OFTA=C.ID_TIPO_OFTA
+                    JOIN  NEO_MX_MAE_ULT_GEST D ON C.ID_OFTA=D.ID_OFTA
+                    JOIN  NEO_MX_MAE_EJEC E ON D.TXT_OFI_ACT=E.TXT_OFI_ACT
+                    WHERE A.ID_TPO=:A AND E.ID_ZON=:B
+                    AND TRUNC(B.FCH_INI_VIG)<=TRUNC(SYSDATE) AND TRUNC(B.FCH_VENCI) >=TRUNC(SYSDATE) AND
+                    D.ID_NEXT_STP IN (1,3) ';
+                ELSIF P_AGR=6 THEN
+                    V_STMT_CAMP:=V_STMT_CAMP||'  NVL(B.SUM_1,0) VAL1
+                    FROM
+                    NEO_MX_MAE_SUC A
+                    LEFT OUTER JOIN 
+                    (
+                    SELECT 
+                    SUM(CASE WHEN D.ID_OFTA=(SELECT ID_OFTA FROM NEO_MX_MAE_DET_CAMP WHERE ID_OFTA=D.ID_OFTA) 
+                      THEN (SELECT NVL(IMP_AUTO,0) FROM NEO_MX_MAE_DET_CAMP WHERE ID_OFTA=D.ID_OFTA) ELSE 0 END) SUM_1,
+                    E.NUM_CC
+                    FROM  NEO_MX_MAE_CAT_SUBT_CAMP A
+                    JOIN  NEO_MX_CAT_OFTA B ON A.ID_SUB_TPO=B.ID_SUB_TPO
+                    JOIN  NEO_MX_MAE_OFTA_CTE C ON B.ID_TIPO_OFTA=C.ID_TIPO_OFTA
+                    JOIN  NEO_MX_MAE_ULT_GEST D ON C.ID_OFTA=D.ID_OFTA
+                    JOIN  NEO_MX_MAE_EJEC E ON D.TXT_OFI_ACT=E.TXT_OFI_ACT
+                    JOIN  NEO_MX_MAE_DET_CAMP F ON C.ID_OFTA=F.ID_OFTA
+                    WHERE A.ID_TPO=:A AND E.ID_ZON=:B
+                    AND TRUNC(B.FCH_INI_VIG)<=TRUNC(SYSDATE) AND TRUNC(B.FCH_VENCI) >=TRUNC(SYSDATE) AND
+                    D.ID_NEXT_STP IN (1,3) ';
+                END IF;
+                    V_STMT_CAMP:=V_STMT_CAMP||' GROUP BY E.NUM_CC
+                    ORDER BY 1) B ON A.NUM_CC=B.NUM_CC
+                    WHERE A.ID_ZON=:C';
+            OPEN O_ACC_COM  FOR V_STMT_CAMP USING P_TIP,P_ESTR,P_ESTR;
+
+        DBMS_OUTPUT.PUT_LINE(V_STMT_CAMP);
+	END IF;
+
+    ELSIF P_FLG=2 THEN
+	IF P_AGR=1 OR P_AGR=2 OR P_AGR=7 OR P_AGR=8 THEN
+		V_STMT_CAMP:='SELECT C.ID_ZON ESTR, C.TXT_NOM_ZON NOM, SUM(A.';
+			IF P_AGR=1 THEN
+				V_STMT_CAMP:=V_STMT_CAMP||'TOT_CAMP';
+			ELSIF P_AGR=2 THEN
+				V_STMT_CAMP:=V_STMT_CAMP||'MNT_CAMP';
+			ELSIF P_AGR=7 THEN 
+				V_STMT_CAMP:=V_STMT_CAMP||'TOT_CERR';
+			ELSIF P_AGR=8 THEN 
+				V_STMT_CAMP:=V_STMT_CAMP||'MNT_CERR';	
+			END IF;
+			V_STMT_CAMP:=V_STMT_CAMP||') VAL1
+              FROM NEO_MX_MAE_TOP_OFTA A
+              JOIN NEO_MX_MAE_SUC B ON A.TXT_ESTR=TO_CHAR(B.NUM_CC)
+              JOIN NEO_MX_MAE_CAT_ZONS C ON B.ID_ZON=C.ID_ZON
+              WHERE A.ID_TPO=:A AND A.TXT_NIVEL=:B AND C.ID_REG=:C
+              GROUP BY C.ID_ZON, C.TXT_NOM_ZON';
+      DBMS_OUTPUT.PUT_LINE(V_STMT_CAMP);
+      OPEN O_ACC_COM  FOR V_STMT_CAMP USING P_TIP,'S',P_ESTR;
+
+	ELSIF P_AGR=3 OR P_AGR=4 OR P_AGR=5 OR P_AGR=6 THEN
+		V_STMT_CAMP:='SELECT A.ID_ZON ESTR,A.TXT_NOM_ZON NOM,';
+			IF P_AGR=3 THEN
+				V_STMT_CAMP:=V_STMT_CAMP||' NVL(B.CONT,0) VAL1
+                FROM
+                NEO_MX_MAE_CAT_ZONS A
+                LEFT OUTER JOIN 
+                (
+                SELECT SUM(CASE WHEN D.ID_OFTA=(SELECT ID_OFTA FROM NEO_MX_MAE_ULT_GEST WHERE ID_OFTA=D.ID_OFTA) 
+                        THEN 1 ELSE 0 END) CONT,
+                E.ID_ZON
+                FROM  NEO_MX_MAE_CAT_SUBT_CAMP A
+                JOIN  NEO_MX_CAT_OFTA B ON A.ID_SUB_TPO=B.ID_SUB_TPO
+                JOIN  NEO_MX_MAE_OFTA_CTE C ON B.ID_TIPO_OFTA=C.ID_TIPO_OFTA
+                JOIN  NEO_MX_MAE_ULT_GEST D ON C.ID_OFTA=D.ID_OFTA
+                JOIN  NEO_MX_MAE_EJEC E ON D.TXT_OFI_ACT=E.TXT_OFI_ACT
+                WHERE A.ID_TPO=:A AND E.ID_REG=:B
+                AND TRUNC(B.FCH_INI_VIG)<=TRUNC(SYSDATE) AND TRUNC(B.FCH_VENCI) >=TRUNC(SYSDATE)';
+			ELSIF P_AGR=4 THEN
+				V_STMT_CAMP:=V_STMT_CAMP||' NVL(B.SUM_1,0) VAL1
+                FROM
+                NEO_MX_MAE_CAT_ZONS A
+                LEFT OUTER JOIN 
+                (
+                SELECT 
+                SUM(CASE WHEN D.ID_OFTA=(SELECT ID_OFTA FROM NEO_MX_MAE_DET_CAMP WHERE ID_OFTA=D.ID_OFTA) 
+                  THEN (SELECT NVL(IMP_AUTO,0) FROM NEO_MX_MAE_DET_CAMP WHERE ID_OFTA=D.ID_OFTA) ELSE 0 END) SUM_1,
+                E.ID_ZON
+                FROM  NEO_MX_MAE_CAT_SUBT_CAMP A
+                JOIN  NEO_MX_CAT_OFTA B ON A.ID_SUB_TPO=B.ID_SUB_TPO
+                JOIN  NEO_MX_MAE_OFTA_CTE C ON B.ID_TIPO_OFTA=C.ID_TIPO_OFTA
+                JOIN  NEO_MX_MAE_ULT_GEST D ON C.ID_OFTA=D.ID_OFTA
+                JOIN  NEO_MX_MAE_EJEC E ON D.TXT_OFI_ACT=E.TXT_OFI_ACT
+                WHERE A.ID_TPO=:A AND E.ID_REG=:B
+                AND TRUNC(B.FCH_INI_VIG)<=TRUNC(SYSDATE) AND TRUNC(B.FCH_VENCI) >=TRUNC(SYSDATE)';
+			ELSIF P_AGR=5 THEN
+				V_STMT_CAMP:=V_STMT_CAMP||' NVL(B.CONT,0) VAL1
+                  FROM
+                  NEO_MX_MAE_CAT_ZONS A
+                  LEFT OUTER JOIN 
+                  (
+                  SELECT SUM(CASE WHEN D.ID_OFTA=(SELECT ID_OFTA FROM NEO_MX_MAE_ULT_GEST WHERE ID_OFTA=D.ID_OFTA) 
+                            THEN 1 ELSE 0 END) CONT,
+                  E.ID_ZON
+                  FROM  NEO_MX_MAE_CAT_SUBT_CAMP A
+                  JOIN  NEO_MX_CAT_OFTA B ON A.ID_SUB_TPO=B.ID_SUB_TPO
+                  JOIN  NEO_MX_MAE_OFTA_CTE C ON B.ID_TIPO_OFTA=C.ID_TIPO_OFTA
+                  JOIN  NEO_MX_MAE_ULT_GEST D ON C.ID_OFTA=D.ID_OFTA
+                  JOIN  NEO_MX_MAE_EJEC E ON D.TXT_OFI_ACT=E.TXT_OFI_ACT
+                  WHERE 
+                    D.ID_NEXT_STP IN (1,3) AND
+                    A.ID_TPO=:A AND E.ID_REG=:B
+                    AND TRUNC(B.FCH_INI_VIG)<=TRUNC(SYSDATE) AND TRUNC(B.FCH_VENCI) >=TRUNC(SYSDATE)';
+			ELSIF P_AGR=6 THEN
+				V_STMT_CAMP:=V_STMT_CAMP||' NVL(B.SUM_1,0) VAL1
+                  FROM
+                  NEO_MX_MAE_CAT_ZONS A
+                  LEFT OUTER JOIN 
+                  (
+                  SELECT  SUM(CASE WHEN D.ID_OFTA=(SELECT ID_OFTA FROM NEO_MX_MAE_DET_CAMP WHERE ID_OFTA=D.ID_OFTA) 
+                  THEN (SELECT NVL(IMP_AUTO,0) FROM NEO_MX_MAE_DET_CAMP WHERE ID_OFTA=D.ID_OFTA) ELSE 0 END) SUM_1,
+                  E.ID_ZON
+                  FROM  NEO_MX_MAE_CAT_SUBT_CAMP A
+                  JOIN  NEO_MX_CAT_OFTA B ON A.ID_SUB_TPO=B.ID_SUB_TPO
+                  JOIN  NEO_MX_MAE_OFTA_CTE C ON B.ID_TIPO_OFTA=C.ID_TIPO_OFTA
+                  JOIN  NEO_MX_MAE_ULT_GEST D ON C.ID_OFTA=D.ID_OFTA
+                  JOIN  NEO_MX_MAE_EJEC E ON D.TXT_OFI_ACT=E.TXT_OFI_ACT
+                  WHERE 
+                    D.ID_NEXT_STP IN (1,3) AND
+                    A.ID_TPO=:A AND E.ID_REG=:B
+                    AND TRUNC(B.FCH_INI_VIG)<=TRUNC(SYSDATE) AND TRUNC(B.FCH_VENCI) >=TRUNC(SYSDATE)';
+			END IF;
+				V_STMT_CAMP:=V_STMT_CAMP||'GROUP BY E.ID_ZON
+                ORDER BY 1) B ON A.ID_ZON=B.ID_ZON
+                WHERE A.ID_REG=:C';
+            DBMS_OUTPUT.PUT_LINE(V_STMT_CAMP);
+            OPEN O_ACC_COM  FOR V_STMT_CAMP USING P_TIP,P_ESTR,P_ESTR;
+            END IF;
+        END IF; 
+    END;
+
+    PROCEDURE SP_NEO_MX_TOP_OFTA(
+        P_FLG IN NUMBER,
+        P_ESTR IN VARCHAR2,
+        P_TIP IN NUMBER,
+        P_AGR IN NUMBER,
+        O_ACC_COM OUT SYS_REFCURSOR) IS
+
+    V_STMT_CAMP VARCHAR2(5000);
+
+    BEGIN
+      IF P_FLG =1 THEN
+        V_STMT_CAMP:='SELECT  NVL(B.POS,68) QRP_1, A.ID_ZON QRP_2, A.TXT_NOM_ZON QRP_3
+                FROM NEO_MX_MAE_CAT_ZONS A
+                LEFT OUTER JOIN (
+                SELECT A.POS ,A.TXT_ESTR ,A.TXT_NOM_ESTR 
+                FROM (
+                SELECT ROWNUM POS, A.*
+                FROM (
+                SELECT C.ID_ZON TXT_ESTR, C.TXT_NOM_ZON TXT_NOM_ESTR, SUM(A.';
+        CASE 
+          WHEN P_AGR=1 THEN 
+            V_STMT_CAMP:= V_STMT_CAMP||'TOT_CAMP';
+          WHEN P_AGR=2 THEN
+            V_STMT_CAMP:= V_STMT_CAMP||'MNT_CAMP';
+          WHEN P_AGR=3 THEN
+            V_STMT_CAMP:= V_STMT_CAMP||'TOT_GEST';
+          WHEN P_AGR=4 THEN
+            V_STMT_CAMP:= V_STMT_CAMP||'MNT_GEST';
+          WHEN P_AGR=5 THEN
+            V_STMT_CAMP:= V_STMT_CAMP||'TOT_FORM';
+          WHEN P_AGR=6 THEN
+            V_STMT_CAMP:= V_STMT_CAMP||'MNT_FORM';
+          WHEN P_AGR=7 THEN
+            V_STMT_CAMP:= V_STMT_CAMP||'TOT_CERR';
+          WHEN P_AGR=8 THEN
+            V_STMT_CAMP:= V_STMT_CAMP||'MNT_CERR';
+          ELSE 
+            V_STMT_CAMP:= V_STMT_CAMP||'TOT_GEST';
+        END CASE;
+        V_STMT_CAMP:= V_STMT_CAMP||')
+                FROM NEO_MX_MAE_TOP_OFTA A
+                JOIN NEO_MX_MAE_SUC B ON A.TXT_ESTR=TO_CHAR(B.NUM_CC)
+                JOIN NEO_MX_MAE_CAT_ZONS C ON B.ID_ZON=C.ID_ZON
+                WHERE A.ID_TPO=:A AND A.TXT_NIVEL=:B
+                GROUP BY C.ID_ZON, C.TXT_NOM_ZON
+                ORDER BY 3 DESC) A) A
+                WHERE TXT_ESTR=:C) B ON A.ID_ZON=B.TXT_ESTR
+                WHERE A.ID_ZON=:D';
+
+        OPEN O_ACC_COM FOR V_STMT_CAMP USING P_TIP,'S',P_ESTR, P_ESTR;
+
+      ELSIF P_FLG =2 THEN
+        V_STMT_CAMP:='SELECT  NVL(B.POS,9) QRP_1, A.ID_REG QRP_2, A.TXT_NOM_REG QRP_3
+                FROM NEO_MX_MAE_CAT_REGS A
+                LEFT OUTER JOIN (
+                SELECT A.POS ,A.TXT_ESTR ,A.TXT_NOM_ESTR
+                FROM (
+                SELECT ROWNUM POS, A.*
+                FROM (
+                SELECT C.ID_REG TXT_ESTR, C.TXT_NOM_REG TXT_NOM_ESTR, SUM(A.';
+        CASE 
+          WHEN P_AGR=1 THEN 
+            V_STMT_CAMP:= V_STMT_CAMP||'TOT_CAMP';
+          WHEN P_AGR=2 THEN
+            V_STMT_CAMP:= V_STMT_CAMP||'MNT_CAMP';
+          WHEN P_AGR=3 THEN
+            V_STMT_CAMP:= V_STMT_CAMP||'TOT_GEST';
+          WHEN P_AGR=4 THEN
+            V_STMT_CAMP:= V_STMT_CAMP||'MNT_GEST';
+          WHEN P_AGR=5 THEN
+            V_STMT_CAMP:= V_STMT_CAMP||'TOT_FORM';
+          WHEN P_AGR=6 THEN
+            V_STMT_CAMP:= V_STMT_CAMP||'MNT_FORM';
+          WHEN P_AGR=7 THEN
+            V_STMT_CAMP:= V_STMT_CAMP||'TOT_CERR';
+          WHEN P_AGR=8 THEN
+            V_STMT_CAMP:= V_STMT_CAMP||'MNT_CERR';
+          ELSE 
+            V_STMT_CAMP:= V_STMT_CAMP||'TOT_GEST';
+        END CASE;
+        V_STMT_CAMP:= V_STMT_CAMP||')
+                FROM NEO_MX_MAE_TOP_OFTA A
+                JOIN NEO_MX_MAE_SUC B ON A.TXT_ESTR=TO_CHAR(B.NUM_CC)
+                JOIN NEO_MX_MAE_CAT_REGS C ON B.ID_REG=C.ID_REG
+                WHERE A.ID_TPO=:A AND A.TXT_NIVEL=:B
+                GROUP BY C.ID_REG, C.TXT_NOM_REG
+                ORDER BY 3 DESC) A) A
+                WHERE TXT_ESTR=:C) B ON A.ID_REG=B.TXT_ESTR
+                WHERE A.ID_REG=:D';
+
+        OPEN O_ACC_COM FOR V_STMT_CAMP USING P_TIP,'S',P_ESTR, P_ESTR;
+      END IF;      
+    END;
+
+    PROCEDURE SP_NEO_MX_CONT_OFTA(
+            P_FLG IN NUMBER,
+            P_FLG2 IN NUMBER,
+            P_ESTR IN VARCHAR2,
+            P_TIP IN NUMBER,
+            O_ACC_COM OUT SYS_REFCURSOR) IS
+
+    V_STMT_CAMP VARCHAR2(5000);
+
+    BEGIN
+        IF P_FLG =1 THEN 
+              V_STMT_CAMP:='SELECT NVL(B.TOT,0) TOT, A.ID_TPO ID_TOT, A.TXT_TPO TXT_TOT, A.COD_COLOR
+              FROM NEO_MX_MAE_CAT_TIP_CAMP A 
+              LEFT OUTER JOIN(
+              SELECT SUM(A.TOT_CAMP) TOT, A.ID_TPO
+              FROM NEO_MX_MAE_TOP_OFTA A
+              JOIN NEO_MX_MAE_SUC B ON A.TXT_ESTR=TO_CHAR(B.NUM_CC)
+              WHERE A.TXT_NIVEL=:A AND B.';
+                IF P_FLG2 = 1 THEN            
+                  V_STMT_CAMP:=V_STMT_CAMP||'ID_REG=:B AND ';
+                ELSIF P_FLG2 = 2 THEN
+                  V_STMT_CAMP:=V_STMT_CAMP||'ID_ZON=:B AND ';
+                END IF;
+              V_STMT_CAMP:=V_STMT_CAMP||'A.ID_TPO <>0
+              GROUP BY A.ID_TPO) B ON A.ID_TPO=B.ID_TPO';
+              DBMS_OUTPUT.PUT_LINE(V_STMT_CAMP);
+              OPEN O_ACC_COM FOR V_STMT_CAMP USING 'S',P_ESTR;
+            ELSIF P_FLG = 2 THEN
+              V_STMT_CAMP:='SELECT NVL(B.TOT,0) TOT, A.ID_SUB_TPO ID_TOT, A.TXT_SUB_TPO TXT_TOT, A.COD_COLOR
+              FROM NEO_MX_MAE_CAT_SUBT_CAMP A 
+              LEFT OUTER JOIN(
+              SELECT SUM(A.TOT_CAMP) TOT, A.ID_SUB_TPO
+              FROM NEO_MX_MAE_TOP_OFTA A
+              JOIN NEO_MX_MAE_SUC B ON A.TXT_ESTR=TO_CHAR(B.NUM_CC)
+              WHERE A.ID_TPO =:A AND A.TXT_NIVEL=:B AND B.';
+                IF P_FLG2 = 1 THEN 
+                  V_STMT_CAMP:=V_STMT_CAMP||'ID_REG=:B AND ';
+                ELSIF P_FLG2 = 2 THEN 
+                  V_STMT_CAMP:=V_STMT_CAMP||'ID_ZON=:B AND ';
+                END IF;
+              V_STMT_CAMP:=V_STMT_CAMP||'A.ID_SUB_TPO <>0
+            GROUP BY A.ID_SUB_TPO) B ON A.ID_SUB_TPO=B.ID_SUB_TPO
+            WHERE A.ID_TPO=:C';
+              DBMS_OUTPUT.PUT_LINE(V_STMT_CAMP);
+              OPEN O_ACC_COM FOR V_STMT_CAMP USING P_TIP,'S',P_ESTR,P_TIP;
+            END IF;
+    END;
+
+    PROCEDURE SP_NEO_MX_LIST_OFTA(
+            P_FLG IN NUMBER,
+            P_ESTR IN VARCHAR2,
+            P_TIP IN NUMBER,
+            P_SUB IN NUMBER,
+            P_CAMP IN NUMBER,
+            P_PLUS IN NUMBER,
+            O_ACC_COM OUT SYS_REFCURSOR) IS
+
+    V_STMT_CAMP VARCHAR2(10000);
+    V_CAL_NAL NUMBER(20,2);
+    V_DIVISOR NUMBER(20,2);
+    V_DIVIDENDO NUMBER(20,2);
+    V_COLOR VARCHAR2(6);
+    V_PORC_CON NUMBER(20,2);
+    V_CAL_NAL_MENOS NUMBER(20,2);
+
+    BEGIN
+    /*
+    ACCIONES COMERCIALES, FILTRADO PARA DRILL-DOWN Y DROLL-UP
+    */
+    ----------------------------------------------------------------------------------------------------------------------------------------------    
+    IF P_FLG = 1 OR P_FLG = 2 THEN    --FLG=1 REGIONAL, FLG=2 ZONAL
+    --OBTENEMOS EL DIVIDENDO DEL NACIONAL - REGIONAL O ZONAL
+        IF P_FLG=1 THEN
+            SELECT SUM(CASE WHEN A.ID_NEXT_STP IN (1,3) THEN 1 ELSE 0 END),COUNT(1) 
+              INTO V_DIVIDENDO, V_DIVISOR
+              FROM NEO_MX_MAE_ULT_GEST A 
+              JOIN NEO_MX_MAE_OFTA_CTE B ON B.ID_OFTA=A.ID_OFTA
+              JOIN NEO_MX_MAE_EJEC C ON B.TXT_OFI_ACT=C.TXT_OFI_ACT
+              JOIN NEO_MX_CAT_OFTA D ON B.ID_TIPO_OFTA=D.ID_TIPO_OFTA
+              JOIN NEO_MX_MAE_CAT_SUBT_CAMP E ON D.ID_SUB_TPO=E.ID_SUB_TPO
+             WHERE C.ID_REG=P_ESTR 
+               AND E.ID_TPO=P_TIP
+               AND TRUNC(D.FCH_INI_VIG)<=TRUNC(SYSDATE) AND TRUNC(D.FCH_VENCI) >=TRUNC(SYSDATE);
+        ELSE
+            SELECT SUM(CASE WHEN A.ID_NEXT_STP IN (1,3) THEN 1 ELSE 0 END),COUNT(1)
+              INTO V_DIVIDENDO, V_DIVISOR
+              FROM NEO_MX_MAE_ULT_GEST A 
+              JOIN NEO_MX_MAE_OFTA_CTE B ON B.ID_OFTA=A.ID_OFTA
+              JOIN NEO_MX_MAE_EJEC C ON B.TXT_OFI_ACT=C.TXT_OFI_ACT
+              JOIN NEO_MX_CAT_OFTA D ON B.ID_TIPO_OFTA=D.ID_TIPO_OFTA
+              JOIN NEO_MX_MAE_CAT_SUBT_CAMP E ON D.ID_SUB_TPO=E.ID_SUB_TPO
+             WHERE C.ID_ZON=P_ESTR
+               AND E.ID_TPO=P_TIP
+               AND TRUNC(D.FCH_INI_VIG)<=TRUNC(SYSDATE) AND TRUNC(D.FCH_VENCI) >=TRUNC(SYSDATE);
+        END IF;
+
+        --REALIZANDO EL CALCULO
+        IF NVL(V_DIVISOR,0)>0 THEN --NACIONAL
+            V_CAL_NAL := ROUND((V_DIVIDENDO/V_DIVISOR)*100,2);
+        ELSE 
+            V_CAL_NAL:=0;
+        END IF;
+
+        V_CAL_NAL_MENOS:=V_CAL_NAL-5;
+
+        DBMS_OUTPUT.PUT_LINE('CALCULO NACIONAL:' || V_CAL_NAL);
+
+        V_STMT_CAMP:='SELECT ';
+
+        IF P_FLG = 1 THEN 
+            V_STMT_CAMP:= V_STMT_CAMP||' A.ID_ZON ESTR, A.TXT_NOM_ZON NOM, ';
+        ELSIF P_FLG = 2 THEN 
+            V_STMT_CAMP:= V_STMT_CAMP||' A.NUM_CC ESTR, A.TXT_NOM_SUC NOM, ';
+        END IF;
+
+        V_STMT_CAMP:= V_STMT_CAMP ||'
+            NVL(B.TOT_CAMP,0) TOT_CAMP, 
+            NVL(B.MNT_CAMP,0) MNT_CAMP, 
+            NVL(C.TOT_GEST,0) TOT_GEST,
+            NVL(C.MNT_GEST,0) MNT_GEST, 
+            NVL(C.TOT_FORM,0) TOT_FORM, 
+            NVL(C.MNT_FORM,0) MNT_FORM, 
+            NVL(D.TOT_CERR,0) TOT_CERR, 
+            CASE WHEN NVL(C.TOT_GEST,0) > 0 THEN ROUND((NVL(D.TOT_CERR,0)/C.TOT_GEST)*100,2) ELSE 0 END PCT_CONV,
+            --PARA CALCULAR EL COLOR
+            --VERDE
+            CASE WHEN ROUND((NVL(D.TOT_CERR,0)/C.TOT_GEST)*100,2) > ' || V_CAL_NAL || ' 
+                 THEN (SELECT TXT_HEX_COL FROM NEO_MX_CAT_GC_DET WHERE ID_CAT=2 AND ID_DET_CGC=5) 
+                 --AMARILLO
+                 WHEN ROUND((NVL(D.TOT_CERR,0)/C.TOT_GEST)*100,2) < ' || V_CAL_NAL || '  AND ROUND((NVL(D.TOT_CERR,0)/C.TOT_GEST)*100,2) >= ' || V_CAL_NAL_MENOS || ' 
+                 THEN (SELECT TXT_HEX_COL FROM NEO_MX_CAT_GC_DET WHERE ID_CAT=2 AND ID_DET_CGC=6)
+                 --ROJO
+                 ELSE (SELECT TXT_HEX_COL FROM NEO_MX_CAT_GC_DET WHERE ID_CAT=2 AND ID_DET_CGC=7) END TXT_COLOR,
+            NVL(D.MNT_CERR,0) MNT_CERR ';
+
+        IF P_FLG = 1 THEN
+            V_STMT_CAMP:= V_STMT_CAMP||' 
+                FROM NEO_MX_MAE_CAT_ZONS A ';
+        ELSIF P_FLG = 2 THEN 
+            V_STMT_CAMP:= V_STMT_CAMP||' 
+                FROM NEO_MX_MAE_SUC A ';
+        END IF;
+
+        V_STMT_CAMP:= V_STMT_CAMP ||'
+            LEFT OUTER JOIN ( SELECT SUM(A.TOT_CAMP) TOT_CAMP, 
+            SUM(A.MNT_CAMP) MNT_CAMP, ';
+
+        IF P_FLG = 1 THEN
+            V_STMT_CAMP:= V_STMT_CAMP ||' B.ID_ZON 
+                FROM NEO_MX_MAE_TOP_OFTA A 
+                JOIN NEO_MX_MAE_SUC B 
+                  ON A.TXT_ESTR=TO_CHAR(B.NUM_CC)
+               WHERE B.ID_REG=:A 
+                 AND A.ID_TPO=:B ';
+        ELSIF P_FLG = 2 THEN
+            V_STMT_CAMP:= V_STMT_CAMP ||' B.NUM_CC
+                FROM NEO_MX_MAE_TOP_OFTA A 
+                JOIN NEO_MX_MAE_SUC B 
+                  ON A.TXT_ESTR=TO_CHAR(B.NUM_CC)
+               WHERE B.ID_ZON=:A 
+                 AND A.ID_TPO=:B';
+        END IF;
+
+        IF P_SUB !=0 THEN
+            V_STMT_CAMP:= V_STMT_CAMP ||' AND A.ID_SUB_TPO=:C';
+            --DBMS_OUTPUT.PUT_LINE('QUERY CON P_SUB' || CHR(13) || V_STMT_CAMP);
+        END IF;
+
+        IF P_CAMP !=0 THEN
+            V_STMT_CAMP:= V_STMT_CAMP ||' AND A.ID_TIPO_OFTA=:P_CAMP';
+            --DBMS_OUTPUT.PUT_LINE('QUERY CON P_CAMP' || CHR(13) || V_STMT_CAMP);
+        END IF;
+
+        IF P_FLG = 1 THEN
+            V_STMT_CAMP:= V_STMT_CAMP || CHR(13) || ' GROUP BY B.ID_ZON) B ON A.ID_ZON=B.ID_ZON ';
+        ELSIF P_FLG = 2 THEN
+            V_STMT_CAMP:= V_STMT_CAMP || CHR(13) || ' GROUP BY B.NUM_CC) B ON A.NUM_CC=B.NUM_CC ';
+        END IF;
+
+        V_STMT_CAMP:= V_STMT_CAMP || 
+            ' LEFT OUTER JOIN (SELECT SUM(1) TOT_GEST,
+                                      SUM(CASE WHEN A.ID_OFTA=(SELECT ID_OFTA FROM NEO_MX_MAE_DET_CAMP WHERE ID_OFTA=A.ID_OFTA) THEN(SELECT IMP_AUTO FROM NEO_MX_MAE_DET_CAMP WHERE ID_OFTA=A.ID_OFTA) ELSE 0 END) MNT_GEST,
+                                      SUM(CASE WHEN A.ID_NEXT_STP IN (1,3) THEN 1 ELSE 0 END) TOT_FORM,
+                                      SUM(CASE WHEN A.ID_NEXT_STP IN (1,3) THEN (SELECT IMP_AUTO FROM NEO_MX_MAE_DET_CAMP WHERE ID_OFTA=A.ID_OFTA) ELSE 0 END) MNT_FORM,';
+        IF P_FLG = 1 THEN
+            V_STMT_CAMP:= V_STMT_CAMP ||' C.ID_ZON ';
+        ELSIF P_FLG = 2 THEN
+            V_STMT_CAMP:= V_STMT_CAMP ||' C.NUM_CC ';
+        END IF;
+
+        V_STMT_CAMP:= V_STMT_CAMP ||' FROM NEO_MX_MAE_ULT_GEST A
+                                      JOIN NEO_MX_MAE_OFTA_CTE B 
+                                        ON B.ID_OFTA=A.ID_OFTA
+                                      JOIN NEO_MX_MAE_EJEC C
+                                        ON B.TXT_OFI_ACT=C.TXT_OFI_ACT
+                                      JOIN NEO_MX_CAT_OFTA D 
+                                        ON B.ID_TIPO_OFTA=D.ID_TIPO_OFTA
+                                      JOIN NEO_MX_MAE_CAT_SUBT_CAMP E 
+                                        ON D.ID_SUB_TPO=E.ID_SUB_TPO
+                                     WHERE ';
+
+        IF P_FLG = 1 THEN
+            V_STMT_CAMP:= V_STMT_CAMP ||' C.ID_REG=:D AND ';	
+        ELSIF P_FLG = 2 THEN
+            V_STMT_CAMP:= V_STMT_CAMP ||' C.ID_ZON=:D AND ';
+        END IF;
+
+        IF P_SUB !=0 THEN
+            V_STMT_CAMP:= V_STMT_CAMP ||' E.ID_SUB_TPO=:E AND';
+        END IF;
+
+        IF P_CAMP !=0 THEN
+            V_STMT_CAMP:= V_STMT_CAMP ||' D.ID_TIPO_OFTA=:P_CAMP2 AND';
+        END IF;
+
+        V_STMT_CAMP:= V_STMT_CAMP ||' E.ID_TPO=:F AND TRUNC(D.FCH_INI_VIG)<=TRUNC(SYSDATE) AND TRUNC(D.FCH_VENCI) >=TRUNC(SYSDATE)';
+
+        IF P_FLG = 1 THEN
+            V_STMT_CAMP:= V_STMT_CAMP ||' GROUP BY C.ID_ZON) C ON A.ID_ZON=C.ID_ZON  ';	
+        ELSIF P_FLG = 2 THEN 
+            V_STMT_CAMP:= V_STMT_CAMP ||' GROUP BY C.NUM_CC) C ON A.NUM_CC=C.NUM_CC  ';
+        END IF;
+
+        V_STMT_CAMP:= V_STMT_CAMP ||' LEFT OUTER JOIN (SELECT SUM(A.TOT_CERR) TOT_CERR, 
+                                                              SUM(A.MNT_CERR) MNT_CERR, ';
+
+        IF P_FLG = 1 THEN 
+            V_STMT_CAMP:= V_STMT_CAMP ||' B.ID_ZON 
+                                     FROM NEO_MX_MAE_TOP_OFTA A 
+                                     JOIN NEO_MX_MAE_SUC B 
+                                       ON A.TXT_ESTR=TO_CHAR(B.NUM_CC)
+                                    WHERE B.ID_REG=:G 
+                                      AND A.ID_TPO=:H';
+        ELSIF P_FLG = 2 THEN
+            V_STMT_CAMP:= V_STMT_CAMP ||' B.NUM_CC 
+                                     FROM NEO_MX_MAE_TOP_OFTA A 
+                                     JOIN NEO_MX_MAE_SUC B 
+                                       ON A.TXT_ESTR=TO_CHAR(B.NUM_CC)
+                                    WHERE B.ID_ZON=:G 
+                                      AND A.ID_TPO=:H';
+        END IF;
+
+        IF P_SUB !=0 THEN
+            V_STMT_CAMP:= V_STMT_CAMP ||' AND A.ID_SUB_TPO=:I';
+        END IF;
+
+        IF P_CAMP !=0 THEN
+            V_STMT_CAMP:= V_STMT_CAMP ||' AND A.ID_TIPO_OFTA=:P_CAMP3';
+        END IF;
+
+        IF P_FLG = 1 THEN 
+            V_STMT_CAMP:= V_STMT_CAMP ||' GROUP BY B.ID_ZON) D ON A.ID_ZON=D.ID_ZON
+                                          WHERE A.ID_REG=:J';
+        ELSIF P_FLG = 2 THEN
+            V_STMT_CAMP:= V_STMT_CAMP ||' GROUP BY B.NUM_CC) D ON A.NUM_CC=D.NUM_CC
+                                          WHERE A.ID_ZON=:K';
+        END IF;
+
+        V_STMT_CAMP:= V_STMT_CAMP ||' ORDER BY 3 DESC';
+
+        DBMS_OUTPUT.PUT_LINE('QUERY FINAL' || CHR(13) || V_STMT_CAMP);
+
+        IF P_SUB = 0 AND P_CAMP=0 THEN 
+            OPEN O_ACC_COM FOR V_STMT_CAMP USING P_ESTR, P_TIP, P_ESTR, P_TIP, P_ESTR, P_TIP, P_ESTR;
+        ELSIF P_SUB != 0 AND P_CAMP=0 THEN
+            OPEN O_ACC_COM FOR V_STMT_CAMP USING P_ESTR, P_TIP, P_SUB,P_ESTR, P_SUB,P_TIP, P_ESTR,P_TIP,P_SUB,P_ESTR;
+        ELSE 
+            OPEN O_ACC_COM FOR V_STMT_CAMP USING P_ESTR, P_TIP, P_SUB,P_CAMP,P_ESTR, P_SUB, P_CAMP,P_TIP, P_ESTR,P_TIP,P_SUB,P_CAMP,P_ESTR;
+        END IF;
+
+----------------------------------------------------------------------------------------------------------------------------------------------    
+    ELSIF P_FLG = 3 THEN        --SUCURSAL
+
+     SELECT SUM(CASE WHEN A.ID_NEXT_STP IN (1,3) THEN 1 ELSE 0 END), COUNT(1)
+       INTO V_DIVIDENDO, V_DIVISOR
+       FROM NEO_MX_MAE_ULT_GEST A JOIN NEO_MX_MAE_OFTA_CTE B ON B.ID_OFTA=A.ID_OFTA
+       JOIN NEO_MX_MAE_EJEC C ON A.TXT_OFI_ACT=C.TXT_OFI_ACT
+       JOIN NEO_MX_CAT_OFTA D ON B.ID_TIPO_OFTA=D.ID_TIPO_OFTA
+       JOIN NEO_MX_MAE_CAT_SUBT_CAMP E ON D.ID_SUB_TPO=E.ID_SUB_TPO
+      WHERE C.NUM_CC=P_ESTR 
+        AND E.ID_TPO=P_TIP 
+        AND TRUNC(D.FCH_INI_VIG)<=TRUNC(SYSDATE) AND TRUNC(D.FCH_VENCI) >=TRUNC(SYSDATE);
+
+    --REALIZANDO EL CALCULO
+    IF NVL(V_DIVISOR,0)>0 THEN --NACIONAL
+        V_CAL_NAL := ROUND((V_DIVIDENDO/V_DIVISOR)*100,2);
+    ELSE 
+        V_CAL_NAL:=0;
+    END IF;
+
+    DBMS_OUTPUT.PUT_LINE('CALCULO NACIONAL:' || V_CAL_NAL);
+
+    V_CAL_NAL_MENOS:=V_CAL_NAL-5;
+
+        V_STMT_CAMP:=' 
+            SELECT A.TXT_OFI_ACT ESTR, 
+                   A.TXT_NOM_EJV NOM, 
+                   NVL(B.TOT_CAMP,0) TOT_CAMP, 
+                   NVL(B.MNT_CAMP,0) MNT_CAMP, 
+                   NVL(C.TOT_GEST,0) TOT_GEST,
+                   NVL(C.MNT_GEST,0) MNT_GEST, 
+                   NVL(C.TOT_FORM,0) TOT_FORM, 
+                   NVL(C.MNT_FORM,0) MNT_FORM, 
+                   NVL(D.TOT_CERR,0) TOT_CERR,
+            CASE WHEN NVL(C.TOT_GEST,0) > 0 THEN ROUND((NVL(D.TOT_CERR,0)/C.TOT_GEST)*100,2) ELSE 0 END PCT_CONV,
+            --PARA CALCULAR EL COLOR
+            --VERDE
+            CASE WHEN ROUND((NVL(D.TOT_CERR,0)/C.TOT_GEST)*100,2) > ' || V_CAL_NAL || ' 
+                 THEN (SELECT TXT_HEX_COL FROM NEO_MX_CAT_GC_DET WHERE ID_CAT=2 AND ID_DET_CGC=5) 
+                 --AMARILLO
+                 WHEN ROUND((NVL(D.TOT_CERR,0)/C.TOT_GEST)*100,2) < ' || V_CAL_NAL || '  AND ROUND((NVL(D.TOT_CERR,0)/C.TOT_GEST)*100,2) >= ' || V_CAL_NAL_MENOS || ' 
+                 THEN (SELECT TXT_HEX_COL FROM NEO_MX_CAT_GC_DET WHERE ID_CAT=2 AND ID_DET_CGC=6)
+                 --ROJO
+                 ELSE (SELECT TXT_HEX_COL FROM NEO_MX_CAT_GC_DET WHERE ID_CAT=2 AND ID_DET_CGC=7) END TXT_COLOR,
+                   NVL(D.MNT_CERR,0) MNT_CERR
+              FROM NEO_MX_MAE_EJEC A 
+              LEFT OUTER JOIN (SELECT COUNT(1) TOT_CAMP,
+                                      SUM(CASE WHEN A.ID_OFTA=(SELECT ID_OFTA FROM NEO_MX_MAE_DET_CAMP WHERE ID_OFTA=A.ID_OFTA) THEN (SELECT IMP_AUTO FROM NEO_MX_MAE_DET_CAMP WHERE ID_OFTA=A.ID_OFTA) ELSE 0 END) MNT_CAMP,
+                                      D.TXT_OFI_ACT
+                                 FROM NEO_MX_MAE_OFTA_CTE A
+                                 JOIN NEO_MX_CAT_OFTA B 
+                                   ON A.ID_TIPO_OFTA=B.ID_TIPO_OFTA
+                                 JOIN NEO_MX_MAE_CAT_SUBT_CAMP C 
+                                   ON B.ID_SUB_TPO=C.ID_SUB_TPO
+                                 JOIN NEO_MX_MAE_EJEC D 
+                                   ON A.TXT_OFI_ACT=D.TXT_OFI_ACT
+                                WHERE D.NUM_CC=:A 
+                                  AND C.ID_TPO=:B 
+                                  AND';
+
+    IF P_SUB != 0 THEN
+        V_STMT_CAMP:= V_STMT_CAMP||' C.ID_SUB_TPO=:C AND ';
+    END IF;
+
+    IF P_CAMP != 0 THEN
+        V_STMT_CAMP:= V_STMT_CAMP||' B.ID_TIPO_OFTA=:P_CAMP1 AND ';
+    END IF;
+
+    V_STMT_CAMP:= V_STMT_CAMP||' TRUNC(B.FCH_INI_VIG)<=TRUNC(SYSDATE) AND TRUNC(B.FCH_VENCI) >=TRUNC(SYSDATE)
+                           GROUP BY D.TXT_OFI_ACT) B ON A.TXT_OFI_ACT=B.TXT_OFI_ACT
+                            LEFT OUTER JOIN (SELECT SUM(1) TOT_GEST,
+                                                    SUM(CASE WHEN A.ID_OFTA=(SELECT ID_OFTA FROM NEO_MX_MAE_DET_CAMP WHERE ID_OFTA=A.ID_OFTA) 
+                                                        THEN (SELECT IMP_AUTO FROM NEO_MX_MAE_DET_CAMP WHERE ID_OFTA=A.ID_OFTA) ELSE 0 END) MNT_GEST,
+                                                    SUM(CASE WHEN A.ID_NEXT_STP IN (1,3) THEN 1 ELSE 0 END) TOT_FORM,
+                                                    SUM(CASE WHEN A.ID_NEXT_STP IN (1,3) 
+                                                        THEN (SELECT IMP_AUTO FROM NEO_MX_MAE_DET_CAMP WHERE ID_OFTA=A.ID_OFTA) ELSE 0 END) MNT_FORM,
+                                                    C.TXT_OFI_ACT
+                                               FROM NEO_MX_MAE_ULT_GEST A
+                                               JOIN NEO_MX_MAE_OFTA_CTE B 
+                                                 ON B.ID_OFTA=A.ID_OFTA
+                                               JOIN NEO_MX_MAE_EJEC C 
+                                                 ON C.TXT_OFI_ACT=B.TXT_OFI_ACT
+                                               JOIN NEO_MX_CAT_OFTA D 
+                                                 ON B.ID_TIPO_OFTA=D.ID_TIPO_OFTA
+                                               JOIN NEO_MX_MAE_CAT_SUBT_CAMP E 
+                                                 ON D.ID_SUB_TPO=E.ID_SUB_TPO
+                                              WHERE C.NUM_CC=:D 
+                                                AND E.ID_TPO=:E AND ';
+
+        IF P_SUB != 0 THEN
+            V_STMT_CAMP:= V_STMT_CAMP||' E.ID_SUB_TPO=:F 
+                                     AND ';
+        END IF;
+
+        IF P_CAMP != 0 THEN
+            V_STMT_CAMP:= V_STMT_CAMP||' D.ID_TIPO_OFTA=:P_CAMP2 
+                                     AND ';
+        END IF;
+
+        V_STMT_CAMP:= V_STMT_CAMP||' TRUNC(D.FCH_INI_VIG)<=TRUNC(SYSDATE) AND TRUNC(D.FCH_VENCI) >=TRUNC(SYSDATE)
+                               GROUP BY C.TXT_OFI_ACT) C 
+                                  ON A.TXT_OFI_ACT=C.TXT_OFI_ACT
+
+                                LEFT OUTER JOIN (SELECT COUNT(1) TOT_CERR, 
+                                                        SUM(CASE WHEN A.ID_OFTA=(SELECT ID_OFTA FROM NEO_MX_MAE_CRRE_PROD WHERE ID_OFTA=A.ID_OFTA) 
+                                                            THEN (SELECT NVL(NUM_MONT_CRRE,0) FROM NEO_MX_MAE_CRRE_PROD WHERE ID_OFTA=A.ID_OFTA) ELSE 0 END) MNT_CERR,
+                                                        E.TXT_OFI_ACT
+                                                   FROM NEO_MX_MAE_OFTA_CTE A
+                                                   JOIN NEO_MX_CAT_OFTA B 
+                                                     ON A.ID_TIPO_OFTA=B.ID_TIPO_OFTA
+                                                   JOIN NEO_MX_MAE_CAT_SUBT_CAMP C 
+                                                     ON B.ID_SUB_TPO=C.ID_SUB_TPO
+                                                   JOIN NEO_MX_MAE_CRRE_PROD D 
+                                                     ON A.ID_OFTA=D.ID_OFTA
+                                                   JOIN NEO_MX_MAE_EJEC E 
+                                                     ON A.TXT_OFI_ACT=E.TXT_OFI_ACT
+                                                  WHERE E.NUM_CC=:G 
+                                                    AND C.ID_TPO=:H AND ';
+        IF P_SUB != 0 THEN
+                V_STMT_CAMP:= V_STMT_CAMP||' C.ID_SUB_TPO=:I AND ';
+        END IF;
+
+        IF P_CAMP != 0 THEN
+            V_STMT_CAMP:= V_STMT_CAMP||' B.ID_TIPO_OFTA=:P_CAMP3 AND ';
+        END IF;
+
+        V_STMT_CAMP:= V_STMT_CAMP||' TRUNC(B.FCH_INI_VIG)<=TRUNC(SYSDATE) AND TRUNC(B.FCH_VENCI) >=TRUNC(SYSDATE)
+                               GROUP BY E.TXT_OFI_ACT) D 
+                                  ON A.TXT_OFI_ACT=D.TXT_OFI_ACT 
+                               WHERE A.NUM_CC=:J
+                            ORDER BY 3 DESC';
+        DBMS_OUTPUT.PUT_LINE(V_STMT_CAMP);
+
+        IF P_SUB = 0 AND P_CAMP = 0 THEN
+            OPEN O_ACC_COM FOR V_STMT_CAMP USING P_ESTR, P_TIP, P_ESTR, P_TIP,P_ESTR,P_TIP,P_ESTR;
+        ELSIF P_SUB <> 0 AND P_CAMP = 0 THEN
+            OPEN O_ACC_COM FOR V_STMT_CAMP USING P_ESTR, P_TIP, P_SUB, P_ESTR, P_TIP, P_SUB, P_ESTR ,P_TIP, P_SUB, P_ESTR;
+        ELSE 
+            OPEN O_ACC_COM FOR V_STMT_CAMP USING P_ESTR, P_TIP, P_SUB,P_CAMP, P_ESTR, P_TIP, P_SUB,P_CAMP, P_ESTR, P_TIP, P_SUB, P_CAMP, P_ESTR;
+        END IF; 
+----------------------------------------------------------------------------------------------------------------------------------------------  
+    ELSIF P_FLG=4 THEN      --EJECUTIVO
+        SELECT SUM(CASE WHEN A.ID_NEXT_STP IN (1,3) THEN 1 ELSE 0 END) TOT_FORM,COUNT(1)
+          INTO V_DIVIDENDO, V_DIVISOR
+          FROM NEO_MX_MAE_ULT_GEST A JOIN NEO_MX_MAE_OFTA_CTE B ON B.ID_OFTA=A.ID_OFTA
+          JOIN NEO_MX_MAE_EJEC C ON A.TXT_OFI_ACT=C.TXT_OFI_ACT
+          JOIN NEO_MX_CAT_OFTA D ON B.ID_TIPO_OFTA=D.ID_TIPO_OFTA
+          JOIN NEO_MX_MAE_CAT_SUBT_CAMP E ON D.ID_SUB_TPO=E.ID_SUB_TPO
+         WHERE C.TXT_OFI_ACT=P_ESTR
+           AND E.ID_TPO=P_TIP 
+           AND TRUNC(D.FCH_INI_VIG)<=TRUNC(SYSDATE) AND TRUNC(D.FCH_VENCI) >=TRUNC(SYSDATE);
+
+        --REALIZANDO EL CALCULO
+        IF NVL(V_DIVISOR,0)>0 THEN --NACIONAL
+            V_CAL_NAL := ROUND(((V_DIVIDENDO/V_DIVISOR)*100),2);
+        ELSE 
+            V_CAL_NAL:=0;
+        END IF;
+
+        DBMS_OUTPUT.PUT_LINE('CALCULO NACIONAL:' || V_CAL_NAL);
+
+        V_CAL_NAL_MENOS:=V_CAL_NAL-5;
+
+        V_STMT_CAMP:='
+        SELECT A.ID_TIPO_OFTA ESTR,
+               A.TXT_NMBR NOM,
+               NVL(B.TOT_CAMP,0) TOT_CAMP, 
+               NVL(B.MNT_CAMP,0) MNT_CAMP, 
+               NVL(C.TOT_GEST,0) TOT_GEST,
+               NVL(C.MNT_GEST,0) MNT_GEST, 
+               NVL(C.TOT_FORM,0) TOT_FORM, 
+               NVL(C.MNT_FORM,0) MNT_FORM, 
+               NVL(D.TOT_CERR,0) TOT_CERR, 
+               CASE WHEN NVL(C.TOT_GEST,0) > 0 THEN ROUND((NVL(D.TOT_CERR,0)/C.TOT_GEST)*100,2) ELSE 0 END PCT_CONV,
+               --PARA CALCULAR EL COLOR
+               --VERDE
+               CASE WHEN ROUND((NVL(D.TOT_CERR,0)/C.TOT_GEST)*100,2) > ' || V_CAL_NAL || ' 
+                    THEN (SELECT TXT_HEX_COL FROM NEO_MX_CAT_GC_DET WHERE ID_CAT=2 AND ID_DET_CGC=5) 
+                    --AMARILLO
+                    WHEN ROUND((NVL(D.TOT_CERR,0)/C.TOT_GEST)*100,2) < ' || V_CAL_NAL || '  AND ROUND((NVL(D.TOT_CERR,0)/C.TOT_GEST)*100,2) >= ' || V_CAL_NAL_MENOS || ' 
+                    THEN (SELECT TXT_HEX_COL FROM NEO_MX_CAT_GC_DET WHERE ID_CAT=2 AND ID_DET_CGC=6)
+                    --ROJO
+                    ELSE (SELECT TXT_HEX_COL FROM NEO_MX_CAT_GC_DET WHERE ID_CAT=2 AND ID_DET_CGC=7) END TXT_COLOR,
+
+               NVL(D.MNT_CERR,0) MNT_CERR
+          FROM NEO_MX_CAT_OFTA A
+          JOIN (SELECT B.ID_TIPO_OFTA,
+                       COUNT(1) TOT_CAMP,
+                       SUM(CASE WHEN A.ID_OFTA=(SELECT ID_OFTA FROM NEO_MX_MAE_DET_CAMP WHERE ID_OFTA=A.ID_OFTA) 
+                         THEN (SELECT NVL(IMP_AUTO,0) FROM NEO_MX_MAE_DET_CAMP WHERE ID_OFTA=A.ID_OFTA) ELSE 0 END) MNT_CAMP
+                  FROM NEO_MX_MAE_OFTA_CTE A
+                  JOIN NEO_MX_CAT_OFTA B 
+                    ON A.ID_TIPO_OFTA=B.ID_TIPO_OFTA
+                  JOIN NEO_MX_MAE_CAT_SUBT_CAMP C 
+                    ON B.ID_SUB_TPO=C.ID_SUB_TPO
+                  JOIN NEO_MX_MAE_EJEC D 
+                    ON A.TXT_OFI_ACT=D.TXT_OFI_ACT
+                 WHERE D.TXT_OFI_ACT=:A 
+                   AND C.ID_TPO=:B 
+                   AND';
+
+        IF P_SUB != 0 THEN
+            V_STMT_CAMP:= V_STMT_CAMP||' C.ID_SUB_TPO=:C AND';
+        END IF;
+
+        IF P_CAMP != 0 THEN
+            V_STMT_CAMP:= V_STMT_CAMP||' B.ID_TIPO_OFTA=:P_CAMP1 AND';
+        END IF;
+
+        V_STMT_CAMP:= V_STMT_CAMP||' TRUNC(B.FCH_INI_VIG)<=TRUNC(SYSDATE) AND TRUNC(B.FCH_VENCI) >=TRUNC(SYSDATE)';
+
+        IF P_PLUS = 3 THEN     
+            V_STMT_CAMP:= V_STMT_CAMP||'AND A.NUM_BUC NOT IN (SELECT NUM_BUC_CTE FROM NEO_MX_MAE_PEP WHERE NUM_BUC_CTE=A.NUM_BUC)';
+        ELSIF P_PLUS = 2 THEN
+        V_STMT_CAMP:= V_STMT_CAMP||'AND A.NUM_BUC IN (SELECT NUM_BUC_CTE FROM NEO_MX_MAE_PEP WHERE NUM_BUC_CTE=A.NUM_BUC)';
+        END IF;
+
+        V_STMT_CAMP:= V_STMT_CAMP||' GROUP BY B.ID_TIPO_OFTA) B 
+                                        ON A.ID_TIPO_OFTA=B.ID_TIPO_OFTA
+                                      LEFT OUTER JOIN (SELECT D.ID_TIPO_OFTA,
+                                                              SUM(1) TOT_GEST,
+                                                              SUM(CASE WHEN A.ID_OFTA=(SELECT ID_OFTA FROM NEO_MX_MAE_DET_CAMP WHERE ID_OFTA=A.ID_OFTA) 
+                                                                THEN (SELECT IMP_AUTO FROM NEO_MX_MAE_DET_CAMP WHERE ID_OFTA=A.ID_OFTA) ELSE 0 END) MNT_GEST,
+                                                              SUM(CASE WHEN  A.ID_NEXT_STP IN (1,3) THEN 1 ELSE 0 END) TOT_FORM,
+                                                              SUM(CASE WHEN  A.ID_NEXT_STP IN (1,3) 
+                                                                THEN (SELECT IMP_AUTO FROM NEO_MX_MAE_DET_CAMP WHERE ID_OFTA=A.ID_OFTA) ELSE 0 END) MNT_FORM
+                                                         FROM NEO_MX_MAE_ULT_GEST A
+                                                         JOIN NEO_MX_MAE_OFTA_CTE B 
+                                                           ON B.ID_OFTA=A.ID_OFTA
+                                                         JOIN NEO_MX_MAE_EJEC C 
+                                                           ON B.TXT_OFI_ACT=C.TXT_OFI_ACT
+                                                         JOIN NEO_MX_CAT_OFTA D 
+                                                           ON B.ID_TIPO_OFTA=D.ID_TIPO_OFTA
+                                                         JOIN NEO_MX_MAE_CAT_SUBT_CAMP E 
+                                                           ON D.ID_SUB_TPO=E.ID_SUB_TPO
+                                                        WHERE C.TXT_OFI_ACT=:D 
+                                                          AND E.ID_TPO=:E AND';
+        IF P_SUB != 0 THEN
+            V_STMT_CAMP:= V_STMT_CAMP||' E.ID_SUB_TPO=:F AND';
+        END IF;
+
+        IF P_CAMP != 0 THEN
+            V_STMT_CAMP:= V_STMT_CAMP||' D.ID_TIPO_OFTA=:P_CAMP2 AND';
+        END IF;
+
+        V_STMT_CAMP:= V_STMT_CAMP||' TRUNC(D.FCH_INI_VIG)<=TRUNC(SYSDATE) AND TRUNC(D.FCH_VENCI) >=TRUNC(SYSDATE)';
+
+        IF P_PLUS = 3 THEN
+            V_STMT_CAMP:= V_STMT_CAMP||'AND B.NUM_BUC NOT IN (SELECT NUM_BUC_CTE FROM NEO_MX_MAE_PEP WHERE NUM_BUC_CTE=B.NUM_BUC)';
+        ELSIF P_PLUS = 2 THEN
+            V_STMT_CAMP:= V_STMT_CAMP||'AND B.NUM_BUC IN (SELECT NUM_BUC_CTE FROM NEO_MX_MAE_PEP WHERE NUM_BUC_CTE=B.NUM_BUC)';
+        END IF;
+
+        V_STMT_CAMP:= V_STMT_CAMP||' GROUP BY D.ID_TIPO_OFTA) C 
+                                        ON A.ID_TIPO_OFTA=C.ID_TIPO_OFTA 
+                                        LEFT OUTER JOIN (SELECT B.ID_TIPO_OFTA,
+                                                                                                 COUNT(1) TOT_CERR, 
+                                                                                                 SUM(CASE WHEN A.ID_OFTA=(SELECT ID_OFTA FROM NEO_MX_MAE_CRRE_PROD WHERE ID_OFTA=A.ID_OFTA) 
+                                                                                                    THEN (SELECT NVL(NUM_MONT_CRRE,0) FROM NEO_MX_MAE_CRRE_PROD WHERE ID_OFTA=A.ID_OFTA) ELSE 0 END) MNT_CERR
+                                                                                            FROM NEO_MX_MAE_OFTA_CTE A
+                                                                                            JOIN NEO_MX_CAT_OFTA B 
+                                                                                              ON A.ID_TIPO_OFTA=B.ID_TIPO_OFTA
+                                                                                            JOIN NEO_MX_MAE_CAT_SUBT_CAMP C 
+                                                                                              ON B.ID_SUB_TPO=C.ID_SUB_TPO
+                                                                                            JOIN NEO_MX_MAE_CRRE_PROD D 
+                                                                                              ON A.ID_OFTA=D.ID_OFTA
+                                                                                            JOIN NEO_MX_MAE_EJEC E 
+                                                                                              ON A.TXT_OFI_ACT=E.TXT_OFI_ACT
+                                                                                           WHERE E.TXT_OFI_ACT=:G 
+                                                                                             AND C.ID_TPO=:H 
+                                                                                             AND';
+        IF P_SUB != 0 THEN
+            V_STMT_CAMP:= V_STMT_CAMP||' C.ID_SUB_TPO=:I AND';
+        END IF;
+
+        IF P_CAMP != 0 THEN
+            V_STMT_CAMP:= V_STMT_CAMP||' B.ID_TIPO_OFTA=:P_CAMP3 AND';
+        END IF;
+
+        V_STMT_CAMP:= V_STMT_CAMP||' TRUNC(B.FCH_INI_VIG)<=TRUNC(SYSDATE) AND TRUNC(B.FCH_VENCI) >=TRUNC(SYSDATE)';
+
+        IF P_PLUS = 3 THEN
+            V_STMT_CAMP:= V_STMT_CAMP||'AND A.NUM_BUC NOT IN (SELECT NUM_BUC_CTE FROM NEO_MX_MAE_PEP WHERE NUM_BUC_CTE=A.NUM_BUC)';
+        ELSIF P_PLUS = 2 THEN
+            V_STMT_CAMP:= V_STMT_CAMP||'AND A.NUM_BUC IN (SELECT NUM_BUC_CTE FROM NEO_MX_MAE_PEP WHERE NUM_BUC_CTE=A.NUM_BUC)';
+        END IF;
+
+        V_STMT_CAMP:= V_STMT_CAMP||' GROUP BY B.ID_TIPO_OFTA) D 
+                                        ON A.ID_TIPO_OFTA=D.ID_TIPO_OFTA
+                                     WHERE TRUNC(A.FCH_INI_VIG)<=TRUNC(SYSDATE) 
+                                       AND TRUNC(A.FCH_VENCI) >=TRUNC(SYSDATE)';
+        DBMS_OUTPUT.PUT_LINE(V_STMT_CAMP);
+
+        IF P_SUB = 0 AND P_CAMP=0 THEN
+            OPEN O_ACC_COM FOR V_STMT_CAMP USING P_ESTR,P_TIP, P_ESTR,P_TIP, P_ESTR, P_TIP;
+        ELSIF P_SUB <> 0 AND P_CAMP=0 THEN
+            OPEN O_ACC_COM FOR V_STMT_CAMP USING P_ESTR,P_TIP,P_SUB,P_ESTR,P_TIP,P_SUB,P_ESTR,P_TIP,P_SUB;
+        ELSE 
+            OPEN O_ACC_COM FOR V_STMT_CAMP USING P_ESTR,P_TIP,P_SUB,P_CAMP,P_ESTR,P_TIP,P_SUB,P_CAMP,P_ESTR,P_TIP,P_SUB,P_CAMP;
+        END IF;
+
+    END IF;
+
+    EXCEPTION
+    WHEN OTHERS THEN
+          DBMS_OUTPUT.PUT_LINE(SQLERRM());
+          DBMS_OUTPUT.PUT_LINE(SQLCODE());
+    END;
+  ----------------------------------------------------------------------------------------------------------------------------------------------
+    PROCEDURE SP_NEO_MX_CONT_OFTA_CAMP(
+            P_FLG IN NUMBER,
+            P_SUB IN NUMBER,
+            P_ESTR IN NUMBER,
+            O_ACC_COM OUT SYS_REFCURSOR) IS 
+
+    V_STMT_CAMP VARCHAR2(5000);  
+    BEGIN
+
+    V_STMT_CAMP:='SELECT DISTINCT TO_CHAR(O.ID_TIPO_OFTA) AS TXT_TIPO_OFTA,
+                       TO_CHAR(O.TXT_NMBR) AS TXT_NOMBRE,
+                       TO_CHAR(O.COD_COLOR) AS TXT_COLOR
+                  FROM NEO_MX_MAE_TOP_OFTA TOP 
+                  JOIN NEO_MX_CAT_OFTA O
+                    ON O.ID_TIPO_OFTA=TOP.ID_TIPO_OFTA 
+                  JOIN NEO_MX_MAE_SUC S
+                    ON TOP.TXT_ESTR=TO_CHAR(S.NUM_CC)
+                 WHERE TRUNC(O.FCH_VENCI)>=TRUNC(SYSDATE)
+                   AND O.ID_SUB_TPO=:A';
+    IF P_FLG = 1 THEN
+      V_STMT_CAMP:=V_STMT_CAMP||' AND S.ID_REG=:B';
+    ELSE
+      V_STMT_CAMP:=V_STMT_CAMP||' AND S.ID_ZON=:B';
+    END IF;            
+    DBMS_OUTPUT.PUT_LINE(V_STMT_CAMP);
+    OPEN O_ACC_COM FOR V_STMT_CAMP USING P_SUB,P_ESTR;
+
+    EXCEPTION
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE(SQLERRM());
+        DBMS_OUTPUT.PUT_LINE(SQLCODE());
+  END;  
+
+    PROCEDURE SP_NEO_MX_GEST_TOP_CAMP(
+            P_ESTR IN VARCHAR2,
+            P_NIVEL IN NUMBER,
+            P_OPC_CANT IN NUMBER,
+            P_FCH_INI IN VARCHAR2,
+            P_FCH_FIN IN VARCHAR2,
+            C_TOP_GEST OUT SYS_REFCURSOR,
+            P_EST OUT NUMBER,
+            P_MSG OUT VARCHAR2) IS
+
+    V_QUERY VARCHAR2(5000);
+    V_QUERY_MAX VARCHAR2(5000);
+    V_MIN NUMBER;
+    V_MAX NUMBER;
+
+    BEGIN
+    V_MIN:=0;
+
+    V_QUERY_MAX:='SELECT
+					MAX(ROWNUM)
+				FROM (SELECT
+				EJEC.TXT_OFI_ACT
+				FROM NEO_MX_MAE_EJEC EJEC
+                JOIN NEO_MX_MAE_SUC SUC ON SUC.NUM_CC=EJEC.NUM_CC
+                JOIN NEO_MX_MAE_CAT_ZONS ZON ON ZON.ID_ZON=SUC.ID_ZON
+                JOIN NEO_MX_MAE_CAT_REGS REG ON REG.ID_REG=ZON.ID_REG
+               WHERE NVL(EJEC.TXT_EXP_CMP,''0'')<>''0''
+                 AND EJEC.ID_PERF=2';
+
+	IF P_NIVEL=3 THEN 
+		V_QUERY_MAX:=V_QUERY_MAX||' AND EJEC.ID_ZON='||P_ESTR;
+	ELSE
+		V_QUERY_MAX:=V_QUERY_MAX||' AND EJEC.ID_REG='||P_ESTR;
+	END IF;
+
+    V_QUERY_MAX:=V_QUERY_MAX||' GROUP BY EJEC.TXT_OFI_ACT)';
+	DBMS_OUTPUT.PUT_LINE(V_QUERY_MAX);
+
+	EXECUTE IMMEDIATE V_QUERY_MAX INTO V_MAX;   --CALCULA EL NÚMERO DE EJECUTIVOS POR ZONA O REGION
+
+    V_MAX:=V_MAX-P_OPC_CANT;
+
+    DBMS_OUTPUT.PUT_LINE(V_MIN);
+    DBMS_OUTPUT.PUT_LINE(V_MAX);
+
+    V_QUERY:='WITH LIST_BOTTOM AS (
+        SELECT  EJEC.TXT_OFI_ACT
+                ,EJEC.TXT_NOM_EJV
+                ,EJEC.TXT_PST
+                ,TO_CHAR(SUC.NUM_CC||'' - ''||TXT_NOM_SUC) AS NOM_SUC
+                ,TO_CHAR(ZON.ID_ZON||'' - ''||TXT_NOM_ZON) AS NOM_ZONA
+                ,TO_CHAR(REG.ID_REG||'' - ''||TXT_NOM_REG) AS NOM_REG
+                ,SUM(CASE WHEN RES.ID_OFTA IS NULL THEN 0 ELSE 1 END) AS CANTIDAD
+           FROM NEO_MX_MAE_EJEC EJEC
+           JOIN NEO_MX_MAE_SUC SUC ON SUC.NUM_CC=EJEC.NUM_CC
+           JOIN NEO_MX_MAE_CAT_ZONS ZON ON ZON.ID_ZON=SUC.ID_ZON
+           JOIN NEO_MX_MAE_CAT_REGS REG ON REG.ID_REG=ZON.ID_REG';
+           IF P_FCH_INI='0' AND P_FCH_FIN <>'0' THEN
+                 V_QUERY:=V_QUERY||' LEFT OUTER JOIN (SELECT ULT.TXT_OFI_ACT
+                                 ,ULT.ID_OFTA
+                              FROM NEO_MX_CAT_OFTA CAT
+                              JOIN NEO_MX_MAE_OFTA_CTE CTE ON CAT.ID_TIPO_OFTA=CTE.ID_TIPO_OFTA
+                              JOIN NEO_MX_MAE_DET_CAMP DET ON DET.ID_OFTA=CTE.ID_OFTA
+                              JOIN NEO_MX_MAE_ULT_GEST ULT ON ULT.ID_OFTA=DET.ID_OFTA
+                             WHERE CAT.FCH_VENCI>=TO_DATE('''|| P_FCH_FIN||''',''DD/MM/YYYY'')
+                               AND FCH_INI_VIG<=TO_DATE('''|| P_FCH_FIN||''',''DD/MM/YYYY'')) RES';
+            ELSIF P_FCH_INI<>'0' AND P_FCH_FIN <>'0' THEN
+                V_QUERY:=V_QUERY||' LEFT OUTER JOIN (SELECT ULT.TXT_OFI_ACT
+                                    ,ULT.ID_OFTA
+                              FROM NEO_MX_MAE_ULT_GEST ULT
+                             WHERE TRUNC(FCH_ULT_MOD) BETWEEN TO_DATE('''|| P_FCH_INI||''',''DD/MM/YYYY'') AND TO_DATE('''|| P_FCH_FIN||''',''DD/MM/YYYY'')) RES';
+            END IF;
+           V_QUERY:=V_QUERY||' ON EJEC.TXT_OFI_ACT=RES.TXT_OFI_ACT
+          WHERE NVL(EJEC.TXT_EXP_CMP,''0'')<>''0'' AND 
+                EJEC.ID_PERF=2 AND';
+
+            IF P_NIVEL=3 THEN 
+                V_QUERY:=V_QUERY||' EJEC.ID_ZON='||P_ESTR;
+            ELSE
+                V_QUERY:=V_QUERY||' EJEC.ID_REG='||P_ESTR;
+            END IF;
+
+            V_QUERY:=V_QUERY||' GROUP BY EJEC.TXT_OFI_ACT
+			,EJEC.TXT_NOM_EJV
+			,EJEC.TXT_PST
+			,TO_CHAR(SUC.NUM_CC||'' - ''||TXT_NOM_SUC)
+			,TO_CHAR(ZON.ID_ZON||'' - ''||TXT_NOM_ZON)
+            ,TO_CHAR(REG.ID_REG||'' - ''||TXT_NOM_REG)
+            ORDER BY 7 DESC
+        )
+        SELECT * FROM (SELECT
+                    LIST_.TXT_OFI_ACT
+                    ,LIST_.TXT_NOM_EJV AS NOM_OFI_ACT
+                    ,LIST_.TXT_PST AS PST_OFI_ACT
+                    ,LIST_.NOM_SUC AS NOM_SUC
+                    ,LIST_.NOM_ZONA AS NOM_ZON
+                    ,LIST_.NOM_REG AS NOM_REG
+                    ,LIST_.CANTIDAD AS NUM_GEST
+                    ,ROWNUM AS NUM_POSICION
+                    ,1 AS ORD_TOP FROM LIST_BOTTOM LIST_
+                    WHERE CANTIDAD>0
+                    ORDER BY ROWNUM OFFSET '||V_MIN||' ROWS FETCH NEXT '||P_OPC_CANT||' ROWS ONLY)
+        UNION ALL
+        SELECT * FROM (SELECT
+                    LIST_.TXT_OFI_ACT
+                    ,LIST_.TXT_NOM_EJV AS NOM_OFI_ACT
+                    ,LIST_.TXT_PST AS PST_OFI_ACT
+                    ,LIST_.NOM_SUC AS NOM_SUC
+                    ,LIST_.NOM_ZONA AS NOM_ZON
+                    ,LIST_.NOM_REG AS NOM_REG
+                    ,LIST_.CANTIDAD AS NUM_GEST
+                    ,ROWNUM AS NUM_POSICION
+                    ,2 AS ORD_TOP FROM LIST_BOTTOM LIST_
+                    ORDER BY ROWNUM OFFSET '||V_MAX||' ROWS FETCH NEXT '||P_OPC_CANT||' ROWS ONLY)';
+
+        DBMS_OUTPUT.PUT_LINE(V_QUERY);
+        OPEN C_TOP_GEST FOR V_QUERY;
+
+        P_EST:=1;
+        P_MSG:='CONSULTA EXITOSA.';
+
+        EXCEPTION
+        WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE(SQLERRM());
+        P_EST:=0;
+        P_MSG:='ERROR: '||SQLERRM();
+   END;
+
+END;
+
+/
